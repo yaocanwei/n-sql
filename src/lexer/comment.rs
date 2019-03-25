@@ -8,14 +8,14 @@
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 #[cfg_attr(feature = "serde_derive", derive(Deserialize, Serialize))]
-pub enum  CommentType {
+pub enum CommentType {
     Block,
-    Line
+    Line,
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 #[cfg_attr(feature = "serde_derive", derive(Deserialize, Serialize))]
 pub struct Comment {
     pub r#type: CommentType,
-    pub content: String
+    pub content: String,
 }

@@ -20,8 +20,8 @@ impl PaginationStatement {
     pub fn new(
         set: Box<SetStatement>,
         skip: Option<Box<Expression>>,
-        limit: Option<Box<Expression>>)
-        -> PaginationStatement {
+        limit: Option<Box<Expression>>,
+    ) -> PaginationStatement {
         PaginationStatement { set, skip, limit }
     }
 }

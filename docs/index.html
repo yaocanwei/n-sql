@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="assets/themes/vue.css">
+    <link rel="stylesheet" href="assets/themes/buble.css" disabled>
+    <link rel="stylesheet" href="assets/themes/dark.css" disabled>
+    <link rel="stylesheet" href="assets/themes/pure.css" disabled>
+    <link rel="stylesheet" href="assets/katex.min.css">
+    <title>N-SQL</title>
+</head>
+
+<body>
+    <nav>
+        <a href="#/">EN</a>
+        <a href="#/zh-CN/">中文</a>
+    </nav>
+    <div id="app"></div>
+    <script>
+        window.$docsify = {
+            name: 'N-SQL',
+            repo: 'https://github.com/mokeyish/n-sql',
+            loadSidebar: true,
+            basePath: './contents',
+            subMaxLevel: 3,
+            fallbackLanguages: ['zh-CN'],
+            search: {
+                maxAge: 86400000,
+                placeholder: {
+                    '/zh-CN/': '搜索',
+                    '/': 'Type to search'
+                },
+                noData: {
+                    '/zh-CN/': '找不到结果',
+                    '/': 'No Results'
+                },
+            },
+            // disqus: 'n-sql'
+        }
+    </script>
+    <script src="assets/docsify-katex.js"></script>
+    <script src="assets/docsify.min.js"></script>
+    <script src="assets/search.js"></script>
+    <script src="assets/emoji.js"></script>
+    <!-- <script src="//unpkg.com/docsify/lib/plugins/disqus.min.js"></script> -->
+    <script>
+        if (typeof navigator.serviceWorker !== 'undefined') {
+            navigator.serviceWorker.register('sw.js')
+        }
+    </script>
+</body>
+
+</html>

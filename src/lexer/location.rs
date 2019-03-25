@@ -35,13 +35,13 @@ impl Location {
 impl fmt::Display for Location {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
-            f, "Line: {}, Column: {}",
+            f,
+            "Line: {}, Column: {}",
             self.line.number(),
             self.column.number()
         )
     }
 }
-
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Default)]
 pub struct Spanned<T, Position> {
@@ -51,7 +51,10 @@ pub struct Spanned<T, Position> {
 
 impl<T, Position: Ord> Spanned<T, Position> {
     pub fn map<U, F: FnMut(T) -> U>(self, mut f: F) -> Spanned<U, Position> {
-        Spanned { span: self.span, value: f(self.value), }
+        Spanned {
+            span: self.span,
+            value: f(self.value),
+        }
     }
     pub fn new(span: Span<Position>, value: T) -> Spanned<T, Position> {
         Spanned { span, value }
@@ -64,13 +67,10 @@ impl<T: fmt::Display, Position: fmt::Display + Copy> fmt::Display for Spanned<T,
     }
 }
 
-
-pub fn spanned<T, Position: Ord>(start: Position, end: Position, value: T) -> Spanned<T, Position>
-{
+pub fn spanned<T, Position: Ord>(start: Position, end: Position, value: T) -> Spanned<T, Position> {
     Spanned::new(Span::new(start, end), value)
 }
 
 pub trait HasSpan {
     fn span(&self) -> Span<Position>;
 }
-

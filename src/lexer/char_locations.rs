@@ -6,7 +6,7 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use super::location::{Location, Line, Column};
+use super::location::{Column, Line, Location};
 use super::parser_source::ParserSource;
 use std::str::Chars;
 
@@ -17,8 +17,8 @@ pub struct CharLocations<'input> {
 
 impl<'input> CharLocations<'input> {
     pub fn new<S>(input: &'input S) -> CharLocations<'input>
-        where
-            S: ?Sized + ParserSource,
+    where
+        S: ?Sized + ParserSource,
     {
         CharLocations {
             location: Location {

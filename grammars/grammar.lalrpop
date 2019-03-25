@@ -97,9 +97,12 @@ extern {
         "unique" => Token::Unique,
         "when" => Token::When,
         "where" => Token::Where,
+        "with" => Token::With,
+        "within" => Token::Within,
 
         "abs" => Token::Abs,
         "avg" => Token::Avg,
+        "avgif" => Token::AvgIf,
         "btrim" => Token::BTrim,
         "cast" => Token::Cast,
         "ceil" => Token::Ceil,
@@ -111,6 +114,7 @@ extern {
         "countif" => Token::CountIf,
         "day" => Token::Day,
         "day_add" => Token::DayAdd,
+        "day_diff" => Token::DayDiff,
         "day_sub" => Token::DaySub,
         "decode" => Token::Decode,
         "dense_rank" => Token::DenseRank,
@@ -118,6 +122,7 @@ extern {
         "floor" => Token::Floor,
         "hour" => Token::Hour,
         "hour_add" => Token::HourAdd,
+        "hour_diff" => Token::HourDiff,
         "hour_sub" => Token::HourSub,
         "length" => Token::Length,
         "log" => Token::Log,
@@ -133,14 +138,20 @@ extern {
         "minif" => Token::MinIf,
         "minute" => Token::Minute,
         "minute_add" => Token::MinuteAdd,
+        "minute_diff" => Token::MinuteDiff,
         "minute_sub" => Token::MinuteSub,
         "month" => Token::Month,
         "month_add" => Token::MonthAdd,
+        "month_diff" => Token::MonthDiff,
         "month_sub" => Token::MonthSub,
         "now" => Token::Now,
         "nvl" => Token::Nvl,
         "pad_left" => Token::PadLeft,
         "pad_right" => Token::PadRight,
+        "percent" => Token::Percent,
+        "percentile" => Token::Percentile,
+        "percentile_cont" => Token::PercentileCont,
+        "percentile_disc" => Token::PercentileDisc,
         "pow" => Token::Pow,
         "power" => Token::Power,
         "replace" => Token::Replace,
@@ -151,10 +162,12 @@ extern {
         "sin" => Token::Sin,
         "sqrt" => Token::Sqrt,
         "stddev" => Token::Stddev,
+        "stddevif" => Token::StddevIf,
         "rpad" => Token::RPad,
         "rtrim" => Token::RTrim,
         "second" => Token::Second,
         "second_add" => Token::SecondAdd,
+        "second_diff" => Token::SecondDiff,
         "second_sub" => Token::SecondSub,
         "substr" => Token::Substr,
         "substring" => Token::Substring,
@@ -167,21 +180,36 @@ extern {
         "upper" => Token::Upper,
         "year" => Token::Year,
         "year_add" => Token::YearAdd,
-        "year_sub" => Token::YearSub
+        "year_diff" => Token::YearDiff,
+        "year_sub" => Token::YearSub,
+
+        "eof" => Token::EOF
     }
 }
 
-pub Statement: Statement = {
+pub StatementEntry: Statement = {
+    <Statement>
+}
+
+pub ExpressionEntry: Expression = {
+    <Expression>
+}
+
+pub PredicateEntry: PredicateExpression = {
+    <Predicate>
+}
+
+Statement: Statement = {
     SetStatement => Statement::Set(<>)
 }
 
-pub Expression: Expression = {
-    Boxed<Expression> Add Boxed<ExpressionFactor> => Expression::Arithmetic(ArithmeticExpression::new(<>)),
-    Boxed<Expression> Sub Boxed<ExpressionFactor> => Expression::Arithmetic(ArithmeticExpression::new(<>)),
+Expression: Expression = {
+    Boxed<Expression> Add Boxed<ExpressionFactor> => Expression::Scalar(ScalarExpression::Arithmetic(ArithmeticExpression::new(<>))),
+    Boxed<Expression> Sub Boxed<ExpressionFactor> => Expression::Scalar(ScalarExpression::Arithmetic(ArithmeticExpression::new(<>))),
     ExpressionFactor
 }
 
-pub Predicate: PredicateExpression = {
+Predicate: PredicateExpression = {
     PredicateNextTier,
     Boxed<Predicate> Or Boxed<PredicateNextTier> => PredicateExpression::Logical(LogicalExpression::new(<>))
 }
@@ -206,7 +234,6 @@ SetStatementTerm: Box<SetStatement> = {
     SelectStatement => SetStatement::Select(<>).into(),
     "(" <SetStatement> ")"
 }
-
 
 
 SelectStatement: SelectStatement = {
@@ -287,14 +314,14 @@ SelectType: SelectType = {
 }
 
 ExpressionFactor: Expression = {
-    Boxed<ExpressionFactor> Mul Boxed<ExpressionUnary> => Expression::Arithmetic(ArithmeticExpression::new(<>)),
-    Boxed<ExpressionFactor> Div Boxed<ExpressionUnary> => Expression::Arithmetic(ArithmeticExpression::new(<>)),
+    Boxed<ExpressionFactor> Mul Boxed<ExpressionUnary> => Expression::Scalar(ScalarExpression::Arithmetic(ArithmeticExpression::new(<>))),
+    Boxed<ExpressionFactor> Div Boxed<ExpressionUnary> => Expression::Scalar(ScalarExpression::Arithmetic(ArithmeticExpression::new(<>))),
     ExpressionUnary
 }
 
 ExpressionUnary: Expression = {
-    "+" <Boxed<ExpressionTypeCast>> => Expression::Unary(UnaryExpression::Plus(<>)) ,
-    "-" <Boxed<ExpressionTypeCast>> => Expression::Unary(UnaryExpression::Minus(<>)),
+    "+" <Boxed<ExpressionTypeCast>> => Expression::Scalar(ScalarExpression::Unary(UnaryExpression::Plus(<>)))  ,
+    "-" <Boxed<ExpressionTypeCast>> => Expression::Scalar(ScalarExpression::Unary(UnaryExpression::Minus(<>))),
     ExpressionTypeCast
 }
 
@@ -303,12 +330,17 @@ ExpressionTypeCast: Expression = {
     ExpressionAtom
 }
 
+ScalarExpression: ScalarExpression = {
+    Constant => ScalarExpression::Constant(<>),
+    Column => ScalarExpression::Column(<>),
+    Function => ScalarExpression::Function(<>),
+    CaseWhen => ScalarExpression::CaseWhen(<>),
+    Variable => ScalarExpression::Variable(<>),
+}
+
 ExpressionAtom: Expression = {
-    Constant => Expression::Constant(<>),
-    Column => Expression::Column(<>),
-    Function => Expression::Function(<>),
-    CaseWhen => Expression::CaseWhen(<>),
-    Variable => Expression::Variable(<>),
+    VectorExpression => Expression::Vector(<>),
+    ScalarExpression => Expression::Scalar(<>),
     "(" <Expression> ")"
 }
 
@@ -398,24 +430,54 @@ Column: Column = {
 }
 
 Function: Function = {
-    AggregateFn => Function::Aggregate(<>),
     StringFn => Function::String(<>),
     CastFn => Function::Cast(<>),
     NvlFn => Function::Nvl(<>),
     DatetimeFn => Function::Datetime(<>),
-    NumericFn => Function::Numeric(<>),
+
+    "abs" "(" <Boxed<Expression>> ")" => Function::Abs(AbsFn::new(<>)),
+    "ceil" "(" <Boxed<Expression>> ")" => Function::Ceil(CeilFn::new(<>)),
+    "ceiling" "(" <Boxed<Expression>> ")" => Function::Ceil(CeilFn::new(<>)),
+    "cos" "(" <Boxed<Expression>> ")" => Function::Cos(CosFn::new(<>)),
+    "dense_rank" "(" <Boxed<Expression>> <("," <SortingDirection>)?> ")" => Function::DenseRank(DenseRankFn::new(<>)),
+    "floor" "(" <Boxed<Expression>> ")" => Function::Floor(FloorFn::new(<>)),
+    "log10" "(" <Boxed<Expression>> ")" => Function::Log10(Log10Fn::new(<>)),
+    "log" "(" <(<Boxed<Expression>> ",")?> <Boxed<Expression>> ")" => Function::Log(LogFn::new(<>)),
+    "pow" "(" <Boxed<Expression>> "," <Boxed<Expression>> ")" => Function::Pow(PowFn::new(<>)),
+    "power" "(" <Boxed<Expression>> "," <Boxed<Expression>> ")" => Function::Pow(PowFn::new(<>)),
+    "rank" "(" <Boxed<Expression>> <("," <SortingDirection>)?> ")" => Function::Rank(RankFn::new(<>)),
+    "round" "(" <Boxed<Expression>> <("," <Boxed<Expression>>)?> ")" => Function::Round(RoundFn::new(<>)),
+    "sign" "(" <Boxed<Expression>> ")" => Function::Sign(SignFn::new(<>)),
+    "sin" "(" <Boxed<Expression>> ")" => Function::Sin(SinFn::new(<>)),
+    "sqrt" "(" <Boxed<Expression>> ")" => Function::Sqrt(SqrtFn::new(<>)),
+    "tan" "(" <Boxed<Expression>> ")" => Function::Tan(TanFn::new(<>)),
     "now" "(" ")" => Function::Now,
     "coalesce" "(" <Comma<Boxed<Expression>>> ")" => Function::Coalesce(CoalesceFn::new(<>))
 }
 
-AggregateFn: AggregateFn = {
-    "avg" "(" <AggregateType?> <Boxed<Expression>> ")" => AggregateFn::Avg(AvgFn::new(<>)),
-    "count" "(" <AggregateType?> <Boxed<Expression>> ")" => AggregateFn::Count(CountFn::new(<>)),
-    "max" "(" <AggregateType?> <Boxed<Expression>> ")" => AggregateFn::Max(MaxFn::new(<>)).into(),
-    "median" "(" <AggregateType?> <Boxed<Expression>> ")" => AggregateFn::Median(MedianFn::new(<>)),
-    "min" "(" <AggregateType?> <Boxed<Expression>> ")" => AggregateFn::Min(MinFn::new(<>)),
-    "sum" "(" <AggregateType?> <Boxed<Expression>> ")" => AggregateFn::Sum(SumFn::new(<>)),
-    "stddev" "(" <AggregateType?> <Boxed<Expression>> ")" => AggregateFn::Stddev(StddevFn::new(<>)),
+VectorExpression: VectorExpression = {
+    "avg" "(" <AggregateType?> <Boxed<Expression>> ")" => VectorExpression::Avg(AvgFn::new(<>)),
+    "count" "(" <AggregateType?> <Boxed<Expression>> ")" => VectorExpression::Count(CountFn::new(<>)),
+    "max" "(" <AggregateType?> <Boxed<Expression>> ")" => VectorExpression::Max(MaxFn::new(<>)).into(),
+    "median" "(" <AggregateType?> <Boxed<Expression>> ")" => VectorExpression::Median(MedianFn::new(<>)),
+    "min" "(" <AggregateType?> <Boxed<Expression>> ")" => VectorExpression::Min(MinFn::new(<>)),
+    "sum" "(" <AggregateType?> <Boxed<Expression>> ")" => VectorExpression::Sum(SumFn::new(<>)),
+    "stddev" "(" <AggregateType?> <Boxed<Expression>> ")" => VectorExpression::Stddev(StddevFn::new(<>)),
+    "avgif" "(" <Boxed<Predicate>> "," <AggregateType?> <Boxed<Expression>> ")" => VectorExpression::AvgIf(AvgIfFn::new(<>)),
+    "countif" "(" <Boxed<Predicate>> "," <AggregateType?> <Boxed<Expression>> ")" => VectorExpression::CountIf(CountIfFn::new(<>)),
+    "maxif" "(" <Boxed<Predicate>> "," <AggregateType?> <Boxed<Expression>> ")" => VectorExpression::MaxIf(MaxIfFn::new(<>)).into(),
+    "medianif" "(" <Boxed<Predicate>> "," <AggregateType?> <Boxed<Expression>> ")" => VectorExpression::MedianIf(MedianIfFn::new(<>)),
+    "minif" "(" <Boxed<Predicate>> "," <AggregateType?> <Boxed<Expression>> ")" => VectorExpression::MinIf(MinIfFn::new(<>)),
+    "sumif" "(" <Boxed<Predicate>> "," <AggregateType?> <Boxed<Expression>> ")" => VectorExpression::SumIf(SumIfFn::new(<>)),
+    "stddevif" "(" <Boxed<Predicate>> "," <AggregateType?> <Boxed<Expression>> ")" => VectorExpression::StddevIf(StddevIfFn::new(<>)),
+
+    "percent" "(" <Boxed<Expression>> "," <Boxed<Expression>> <("," <SortingDirection>)?> ")" => VectorExpression::Percentile(PercentileFn::new(<>, PercentileType::Cont)),
+    "percentile" "(" <Boxed<Expression>> "," <Boxed<Expression>> <("," <SortingDirection>)?> ")" => VectorExpression::Percentile(PercentileFn::new(<>, PercentileType::Cont)),
+    "percentile_cont" "(" <Boxed<Expression>> "," <Boxed<Expression>> <("," <SortingDirection>)?> ")" => VectorExpression::Percentile(PercentileFn::new(<>, PercentileType::Cont)),
+    "percentile_disc" "(" <Boxed<Expression>> "," <Boxed<Expression>> <("," <SortingDirection>)?> ")" => VectorExpression::Percentile(PercentileFn::new(<>, PercentileType::Disc)),
+
+    "percentile_cont" "(" <p: Boxed<Expression>> ")" "within" "group" "(" "order" "by" <expr:Boxed<Expression>> <order:SortingDirection?> ")" => VectorExpression::Percentile(PercentileFn::new(expr, p, order, PercentileType::Cont)),
+    "percentile_disc" "(" <p: Boxed<Expression>> ")" "within" "group" "(" "order" "by" <expr:Boxed<Expression>> <order:SortingDirection?> ")" => VectorExpression::Percentile(PercentileFn::new(expr, p, order, PercentileType::Disc)),
 }
 
 AggregateType: AggregateType = {
@@ -458,24 +520,6 @@ TrimType: TrimType = {
     "trailing" => TrimType::Trailing,
 }
 
-NumericFn: NumericFn = {
-    "abs" "(" <Boxed<Expression>> ")" => NumericFn::Abs(AbsFn::new(<>)),
-    "ceil" "(" <Boxed<Expression>> ")" => NumericFn::Ceil(CeilFn::new(<>)),
-    "ceiling" "(" <Boxed<Expression>> ")" => NumericFn::Ceil(CeilFn::new(<>)),
-    "cos" "(" <Boxed<Expression>> ")" => NumericFn::Cos(CosFn::new(<>)),
-    "dense_rank" "(" <Boxed<Expression>> <("," <SortingDirection>)?> ")" => NumericFn::DenseRank(DenseRankFn::new(<>)),
-    "floor" "(" <Boxed<Expression>> ")" => NumericFn::Floor(FloorFn::new(<>)),
-    "log10" "(" <Boxed<Expression>> ")" => NumericFn::Log10(Log10Fn::new(<>)),
-    "log" "(" <(<Boxed<Expression>> ",")?> <Boxed<Expression>> ")" => NumericFn::Log(LogFn::new(<>)),
-    "pow" "(" <Boxed<Expression>> "," <Boxed<Expression>> ")" => NumericFn::Pow(PowFn::new(<>)),
-    "power" "(" <Boxed<Expression>> "," <Boxed<Expression>> ")" => NumericFn::Pow(PowFn::new(<>)),
-    "rank" "(" <Boxed<Expression>> <("," <SortingDirection>)?> ")" => NumericFn::Rank(RankFn::new(<>)),
-    "round" "(" <Boxed<Expression>> <("," <Boxed<Expression>>)?> ")" => NumericFn::Round(RoundFn::new(<>)),
-    "sign" "(" <Boxed<Expression>> ")" => NumericFn::Sign(SignFn::new(<>)),
-    "sin" "(" <Boxed<Expression>> ")" => NumericFn::Sin(SinFn::new(<>)),
-    "sqrt" "(" <Boxed<Expression>> ")" => NumericFn::Sqrt(SqrtFn::new(<>)),
-    "tan" "(" <Boxed<Expression>> ")" => NumericFn::Tan(TanFn::new(<>)),
-}
 
 DatetimeFn: DatetimeFn = {
     "day_add" "(" <Boxed<Expression>> "," <Boxed<Expression>> ")" => DatetimeFn::DayAdd(DayAddFn::new(<>)),
@@ -491,7 +535,13 @@ DatetimeFn: DatetimeFn = {
     "year_add" "(" <Boxed<Expression>> "," <Boxed<Expression>> ")" => DatetimeFn::YearAdd(YearAddFn::new(<>)),
     "year_sub" "(" <Boxed<Expression>> "," <Boxed<Expression>> ")" => DatetimeFn::YearSub(YearSubFn::new(<>)),
     "extract" "(" <DatetimeType> "from" <Boxed<Expression>> ")" => DatetimeFn::Extract(ExtractFn::new(<>)),
-    <DatetimeType> "(" <Boxed<Expression>> ")" => DatetimeFn::Extract(ExtractFn::new(<>))
+    <DatetimeType> "(" <Boxed<Expression>> ")" => DatetimeFn::Extract(ExtractFn::new(<>)),
+    "year_diff" "(" <Boxed<Expression>> "," <Boxed<Expression>> ")" => DatetimeFn::Diff(DatetimeDiffFn::new(<>, DatetimeType::Year)),
+    "month_diff" "(" <Boxed<Expression>> "," <Boxed<Expression>> ")" => DatetimeFn::Diff(DatetimeDiffFn::new(<>, DatetimeType::Month)),
+    "day_diff" "(" <Boxed<Expression>> "," <Boxed<Expression>> ")" => DatetimeFn::Diff(DatetimeDiffFn::new(<>, DatetimeType::Day)),
+    "hour_diff" "(" <Boxed<Expression>> "," <Boxed<Expression>> ")" => DatetimeFn::Diff(DatetimeDiffFn::new(<>, DatetimeType::Hour)),
+    "minute_diff" "(" <Boxed<Expression>> "," <Boxed<Expression>> ")" => DatetimeFn::Diff(DatetimeDiffFn::new(<>, DatetimeType::Minute)),
+    "second_diff" "(" <Boxed<Expression>> "," <Boxed<Expression>> ")" => DatetimeFn::Diff(DatetimeDiffFn::new(<>, DatetimeType::Second)),
 }
 
 DatetimeType: DatetimeType = {

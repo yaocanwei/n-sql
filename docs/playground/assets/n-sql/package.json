@@ -1,0 +1,17 @@
+{
+  "name": "n-sql",
+  "collaborators": [
+    "YISH <mokeyish@hotmail.com>"
+  ],
+  "version": "0.1.0",
+  "license": "Apache-2.0/MIT",
+  "files": [
+    "n_sql_bg.wasm",
+    "n_sql.js",
+    "n_sql.d.ts",
+    "LICENSE-APACHE",
+    "LICENSE-MIT"
+  ],
+  "browser": "n_sql.js",
+  "types": "n_sql.d.ts"
+}

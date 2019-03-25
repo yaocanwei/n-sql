@@ -9,8 +9,8 @@
 use ast::Expression;
 use ast::Identifier;
 use ast::PredicateExpression;
-use ast::TableView;
 use ast::SortingDirection;
+use ast::TableView;
 
 #[derive(Clone, Debug)]
 pub struct SelectStatement {
@@ -37,13 +37,13 @@ impl SelectStatement {
             tables,
             predicate,
             group,
-            sorts
+            sorts,
         }
     }
 }
 
 #[derive(Clone, Debug)]
-pub enum  SelectElement {
+pub enum SelectElement {
     Expression(Box<Expression>, Option<Identifier>),
     Asterisk(Option<Identifier>),
 }
@@ -55,7 +55,10 @@ pub struct GroupElements {
 }
 
 impl GroupElements {
-    pub fn new(elements: Vec<Box<Expression>>, having: Option<Box<PredicateExpression>>) -> GroupElements {
+    pub fn new(
+        elements: Vec<Box<Expression>>,
+        having: Option<Box<PredicateExpression>>,
+    ) -> GroupElements {
         GroupElements { elements, having }
     }
 }
@@ -74,19 +77,16 @@ impl SortingElement {
 pub enum SelectType {
     All,
     Distinct,
-    Unique
+    Unique,
 }
 
 mod select_builder {
-    struct Builder {
-    }
+    struct Builder {}
     pub trait IHasFrom {
         fn from() -> Box<IKeySelect>;
     }
-    pub trait IKeySelect {
-    }
-    pub trait IkeyFrom{
-    }
+    pub trait IKeySelect {}
+    pub trait IkeyFrom {}
     fn select() -> Box<IKeySelect> {
         unimplemented!()
     }

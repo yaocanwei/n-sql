@@ -1,4 +1,7 @@
 /target
+/pkg
+/bin
 /.idea
+*.log
 **/*.rs.bk
 Cargo.lock

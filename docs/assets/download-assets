@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+curl -L -o docsify-katex.js http://cdn.jsdelivr.net/npm/docsify-katex@latest/dist/docsify-katex.js
+curl -L -o docsify.min.js http://unpkg.com/docsify/lib/docsify.min.js
+curl -L -o search.js http://unpkg.com/docsify/lib/plugins/search.js
+curl -L -o themes/vue.css http://unpkg.com/docsify/themes/vue.css
+curl -L -o themes/buble.css http://unpkg.com/docsify/themes/buble.css
+curl -L -o themes/dark.css http://unpkg.com/docsify/themes/dark.css
+curl -L -o themes/pure.css http://unpkg.com/docsify/themes/pure.css
+curl -L -o katex.min.css http://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.css
+
+
+curl -L -o fonts/KaTeX_AMS-Regular.woff http://cdn.jsdelivr.net/npm/katex@latest/dist/fonts/KaTeX_AMS-Regular.woff
+curl -L -o fonts/KaTeX_AMS-Regular.woff2 http://cdn.jsdelivr.net/npm/katex@latest/dist/fonts/KaTeX_AMS-Regular.woff2
+curl -L -o fonts/KaTeX_AMS-Regular.ttf http://cdn.jsdelivr.net/npm/katex@latest/dist/fonts/KaTeX_AMS-Regular.ttf
+curl -L -o fonts/KaTeX_Main-Regular.woff2 http://cdn.jsdelivr.net/npm/katex@latest/dist/fonts/KaTeX_Main-Regular.woff2

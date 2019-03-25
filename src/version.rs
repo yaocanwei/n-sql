@@ -12,5 +12,5 @@ pub struct Version {
     minor: i32,
     revision: i32,
     major_revision: i16,
-    minor_revision: i16
+    minor_revision: i16,
 }

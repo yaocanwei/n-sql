@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>N-SQL Playground</title>
+    <!--<base href="/">-->
+    <base href="/playground/">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <script src='assets/n-sql/n_sql.js'></script>
+<link rel="stylesheet" href="styles.cf02a2f376d0dc444793.css"></head>
+
+<body>
+    <app-root></app-root>
+    <script type=module>
+        async function run() {
+            await wasm_bindgen('assets/n-sql/n_sql_bg.wasm');
+        }
+        run().then(() => window.n_sql = wasm_bindgen);
+    </script>
+<script type="text/javascript" src="runtime.ec2944dd8b20ec099bf3.js"></script><script type="text/javascript" src="polyfills.c6871e56cb80756a5498.js"></script><script type="text/javascript" src="main.83f2cb663f4fd07402e3.js"></script></body>
+
+</html>

@@ -6,8 +6,8 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use ast::TableView;
 use ast::PredicateExpression;
+use ast::TableView;
 
 #[derive(Clone, Debug)]
 pub struct JoinNode {
@@ -22,12 +22,16 @@ impl JoinNode {
         base: Box<TableView>,
         join_type: JoinType,
         join: Box<TableView>,
-        condition: Box<PredicateExpression>)
-        -> JoinNode {
-        JoinNode { base, join, join_type, condition }
+        condition: Box<PredicateExpression>,
+    ) -> JoinNode {
+        JoinNode {
+            base,
+            join,
+            join_type,
+            condition,
+        }
     }
 }
-
 
 #[derive(Clone, Debug, Copy)]
 pub enum JoinType {

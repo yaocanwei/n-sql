@@ -7,22 +7,261 @@
 // except according to those terms.
 
 use ast::*;
-use std::fmt::{Write, Error, Result};
+use std::fmt::{Error, Result, Write};
 use std::result;
 
 type Formatter = String;
 
-
 pub trait Visitor {
-    fn visit_statement(&self, statement: &Statement, f: &mut Formatter) -> Result {
-        match statement {
-            Statement::Set(t) => self.visit_set_statement(t, f)
+    fn visit_ast(&self, ast: &Ast, f: &mut Formatter) -> Result {
+        match ast {
+            Ast::Statement(t) => self.visit_statement(t, f),
+            Ast::Expression(t) => self.visit_expression(t, f),
         }
     }
+    fn visit_statement(&self, statement: &Statement, f: &mut Formatter) -> Result {
+        match statement {
+            Statement::Set(t) => self.visit_set_statement(t, f),
+        }
+    }
+    // region [expression]
+    fn visit_expression(&self, expr: &Expression, f: &mut Formatter) -> Result {
+        match expr {
+            Expression::Scalar(s) => self.visit_scalar(s, f),
+            Expression::Vector(v) => self.visit_vector(v, f),
+        }
+    }
+
+    // region [scalar expression]
+    fn visit_scalar(&self, expr: &ScalarExpression, f: &mut Formatter) -> Result {
+        match expr {
+            ScalarExpression::Constant(t) => self.visit_constant(t, f),
+            ScalarExpression::Column(t) => self.visit_column(t, f),
+            ScalarExpression::Variable(t) => self.visit_variable(t, f),
+            ScalarExpression::Unary(t) => self.visit_unary(t, f),
+            ScalarExpression::Arithmetic(t) => self.visit_arithmetic(t, f),
+            ScalarExpression::CaseWhen(t) => self.visit_case_when(t, f),
+            ScalarExpression::Function(t) => self.visit_function(t, f),
+        }
+    }
+    // endregion
+
+    // region [vector expression]
+    fn visit_vector(&self, expr: &VectorExpression, f: &mut Formatter) -> Result {
+        match expr {
+            VectorExpression::Avg(t) => self.visit_avg_fn(t, f),
+            VectorExpression::Count(t) => self.visit_count_fn(t, f),
+            VectorExpression::Max(t) => self.visit_max_fn(t, f),
+            VectorExpression::Median(t) => self.visit_median_fn(t, f),
+            VectorExpression::Min(t) => self.visit_min_fn(t, f),
+            VectorExpression::Sum(t) => self.visit_sum_fn(t, f),
+            VectorExpression::Stddev(t) => self.visit_stddev_fn(t, f),
+            VectorExpression::AvgIf(t) => self.visit_avg_if_fn(t, f),
+            VectorExpression::CountIf(t) => self.visit_count_if_fn(t, f),
+            VectorExpression::MaxIf(t) => self.visit_max_if_fn(t, f),
+            VectorExpression::MedianIf(t) => self.visit_median_if_fn(t, f),
+            VectorExpression::MinIf(t) => self.visit_min_if_fn(t, f),
+            VectorExpression::SumIf(t) => self.visit_sum_if_fn(t, f),
+            VectorExpression::StddevIf(t) => self.visit_stddev_if_fn(t, f),
+            VectorExpression::Percentile(t) => self.visit_percentile(t, f),
+        }
+    }
+
+    fn visit_aggregate_type(&self, aggregate_type: &AggregateType, f: &mut Formatter) -> Result {
+        use AggregateType::*;
+        match aggregate_type {
+            Distinct => f.write_str("distinct"),
+            All => f.write_str("all"),
+            Unique => f.write_str("unique"),
+        }
+    }
+    fn visit_stddev_fn(&self, function: &StddevFn, f: &mut Formatter) -> Result {
+        f.write_str("stddev")?;
+        f.write_char('(')?;
+        if let Some(ref t) = function.aggregate_type {
+            self.visit_aggregate_type(t, f)?;
+            f.write_char(' ')?;
+        }
+        self.visit_expression(&function.expr, f)?;
+        f.write_char(')')
+    }
+    fn visit_avg_fn(&self, function: &AvgFn, f: &mut Formatter) -> Result {
+        f.write_str("avg")?;
+        f.write_char('(')?;
+        if let Some(ref t) = function.aggregate_type {
+            self.visit_aggregate_type(t, f)?;
+            f.write_char(' ')?;
+        }
+        self.visit_expression(&function.expr, f)?;
+        f.write_char(')')
+    }
+    fn visit_count_fn(&self, function: &CountFn, f: &mut Formatter) -> Result {
+        f.write_str("count")?;
+        f.write_char('(')?;
+        if let Some(ref t) = function.aggregate_type {
+            self.visit_aggregate_type(t, f)?;
+            f.write_char(' ')?;
+        }
+        self.visit_expression(&function.expr, f)?;
+        f.write_char(')')
+    }
+    fn visit_max_fn(&self, function: &MaxFn, f: &mut Formatter) -> Result {
+        f.write_str("max")?;
+        f.write_char('(')?;
+        if let Some(ref t) = function.aggregate_type {
+            self.visit_aggregate_type(t, f)?;
+            f.write_char(' ')?;
+        }
+        self.visit_expression(&function.expr, f)?;
+        f.write_char(')')
+    }
+    fn visit_median_fn(&self, function: &MedianFn, f: &mut Formatter) -> Result {
+        f.write_str("median")?;
+        f.write_char('(')?;
+        if let Some(ref t) = function.aggregate_type {
+            self.visit_aggregate_type(t, f)?;
+            f.write_char(' ')?;
+        }
+        self.visit_expression(&function.expr, f)?;
+        f.write_char(')')
+    }
+    fn visit_min_fn(&self, function: &MinFn, f: &mut Formatter) -> Result {
+        f.write_str("min")?;
+        f.write_char('(')?;
+        if let Some(ref t) = function.aggregate_type {
+            self.visit_aggregate_type(t, f)?;
+            f.write_char(' ')?;
+        }
+        self.visit_expression(&function.expr, f)?;
+        f.write_char(')')
+    }
+    fn visit_sum_fn(&self, function: &SumFn, f: &mut Formatter) -> Result {
+        f.write_str("sum")?;
+        f.write_char('(')?;
+        if let Some(ref t) = function.aggregate_type {
+            self.visit_aggregate_type(t, f)?;
+            f.write_char(' ')?;
+        }
+        self.visit_expression(&function.expr, f)?;
+        f.write_char(')')
+    }
+    fn visit_percentile(&self, function: &PercentileFn, f: &mut Formatter) -> Result {
+        match function.r#type {
+            PercentileType::Cont => f.write_str("percentile_cont")?,
+            PercentileType::Disc => f.write_str("percentile_disc")?,
+        };
+        f.write_char('(')?;
+        self.visit_expression(&function.p, f)?;
+        f.write_char(')')?;
+        f.write_str(" within group (order by ")?;
+        self.visit_expression(&function.expr, f)?;
+
+        if let Some(t) = function.order.as_ref() {
+            match t {
+                SortingDirection::Ascending => f.write_str(" asc")?,
+                SortingDirection::Descending => f.write_str(" desc")?,
+            }
+        }
+
+        f.write_char(')')
+    }
+
+    fn visit_stddev_if_fn(&self, function: &StddevIfFn, f: &mut Formatter) -> Result {
+        f.write_str("stddevif")?;
+        f.write_char('(')?;
+        self.visit_predicate(&function.predicate, f)?;
+        f.write_str(", ")?;
+        if let Some(ref t) = function.aggregate_type {
+            self.visit_aggregate_type(t, f)?;
+            f.write_char(' ')?;
+        }
+        self.visit_expression(&function.expr, f)?;
+        f.write_char(')')
+    }
+    fn visit_avg_if_fn(&self, function: &AvgIfFn, f: &mut Formatter) -> Result {
+        f.write_str("avgif")?;
+        f.write_char('(')?;
+        self.visit_predicate(&function.predicate, f)?;
+        f.write_str(", ")?;
+        if let Some(ref t) = function.aggregate_type {
+            self.visit_aggregate_type(t, f)?;
+            f.write_char(' ')?;
+        }
+        self.visit_expression(&function.expr, f)?;
+        f.write_char(')')
+    }
+    fn visit_count_if_fn(&self, function: &CountIfFn, f: &mut Formatter) -> Result {
+        f.write_str("countif")?;
+        f.write_char('(')?;
+        self.visit_predicate(&function.predicate, f)?;
+        f.write_str(", ")?;
+        if let Some(ref t) = function.aggregate_type {
+            self.visit_aggregate_type(t, f)?;
+            f.write_char(' ')?;
+        }
+        self.visit_expression(&function.expr, f)?;
+        f.write_char(')')
+    }
+    fn visit_max_if_fn(&self, function: &MaxIfFn, f: &mut Formatter) -> Result {
+        f.write_str("maxif")?;
+        f.write_char('(')?;
+        self.visit_predicate(&function.predicate, f)?;
+        f.write_str(", ")?;
+        if let Some(ref t) = function.aggregate_type {
+            self.visit_aggregate_type(t, f)?;
+            f.write_char(' ')?;
+        }
+        self.visit_expression(&function.expr, f)?;
+        f.write_char(')')
+    }
+    fn visit_median_if_fn(&self, function: &MedianIfFn, f: &mut Formatter) -> Result {
+        f.write_str("medianif")?;
+        f.write_char('(')?;
+        if let Some(ref t) = function.aggregate_type {
+            self.visit_aggregate_type(t, f)?;
+            f.write_char(' ')?;
+        }
+        self.visit_expression(&function.expr, f)?;
+        f.write_char(')')
+    }
+    fn visit_min_if_fn(&self, function: &MinIfFn, f: &mut Formatter) -> Result {
+        f.write_str("minif")?;
+        f.write_char('(')?;
+        self.visit_predicate(&function.predicate, f)?;
+        f.write_str(", ")?;
+        if let Some(ref t) = function.aggregate_type {
+            self.visit_aggregate_type(t, f)?;
+            f.write_char(' ')?;
+        }
+        self.visit_expression(&function.expr, f)?;
+        f.write_char(')')
+    }
+    fn visit_sum_if_fn(&self, function: &SumIfFn, f: &mut Formatter) -> Result {
+        f.write_str("sumif")?;
+        f.write_char('(')?;
+        self.visit_predicate(&function.predicate, f)?;
+        f.write_str(", ")?;
+        if let Some(ref t) = function.aggregate_type {
+            self.visit_aggregate_type(t, f)?;
+            f.write_char(' ')?;
+        }
+        self.visit_expression(&function.expr, f)?;
+        f.write_char(')')
+    }
+
+    // endregion
+
+    // endregion
     fn visit_set_statement(&self, statement: &SetStatement, f: &mut Formatter) -> Result {
         use SetStatement::*;
-        let is_set: fn(&Box<SetStatement>) -> bool = |s| match s.as_ref() { Select(_)=> false, _=> true};
-        let is_pagination: fn(&Box<SetStatement>) -> bool = |s| match s.as_ref() { Pagination(_)=> true, _=> false};
+        let is_set: fn(&Box<SetStatement>) -> bool = |s| match s.as_ref() {
+            Select(_) => false,
+            _ => true,
+        };
+        let is_pagination: fn(&Box<SetStatement>) -> bool = |s| match s.as_ref() {
+            Pagination(_) => true,
+            _ => false,
+        };
         match statement {
             Select(t) => self.visit_select_statement(t, f),
             Union(left, right) => {
@@ -33,8 +272,10 @@ pub trait Visitor {
                 } else {
                     self.visit_set_statement(left, f)?;
                 }
-                f.write_str(" union ")?;
-                if is_set(right){
+                f.write_char(' ')?;
+                self.format_letter("union", f)?;
+                f.write_char(' ')?;
+                if is_set(right) {
                     f.write_char('(')?;
                     self.visit_set_statement(right, f)?;
                     f.write_char(')')
@@ -50,8 +291,13 @@ pub trait Visitor {
                 } else {
                     self.visit_set_statement(left, f)?;
                 }
-                f.write_str(" union all ")?;
-                if is_set(right){
+                f.write_char(' ')?;
+                self.format_letter("union", f)?;
+                f.write_char(' ')?;
+                self.format_letter("all", f)?;
+                f.write_char(' ')?;
+
+                if is_set(right) {
                     f.write_char('(')?;
                     self.visit_set_statement(right, f)?;
                     f.write_char(')')
@@ -68,7 +314,7 @@ pub trait Visitor {
                     self.visit_set_statement(left, f)?;
                 }
                 f.write_str(" intersect ")?;
-                if is_set(right){
+                if is_set(right) {
                     f.write_char('(')?;
                     self.visit_set_statement(right, f)?;
                     f.write_char(')')
@@ -85,18 +331,22 @@ pub trait Visitor {
                     self.visit_set_statement(left, f)?;
                 }
                 f.write_str(" minus ")?;
-                if is_set(right){
+                if is_set(right) {
                     f.write_char('(')?;
                     self.visit_set_statement(right, f)?;
                     f.write_char(')')
                 } else {
                     self.visit_set_statement(right, f)
                 }
-            },
-            Pagination(p) => self.visit_pagination_statement(p, f)
+            }
+            Pagination(p) => self.visit_pagination_statement(p, f),
         }
     }
-    fn visit_pagination_statement(&self, pagination_statement: &Box<PaginationStatement>, f: &mut Formatter) -> Result {
+    fn visit_pagination_statement(
+        &self,
+        pagination_statement: &Box<PaginationStatement>,
+        f: &mut Formatter,
+    ) -> Result {
         self.visit_set_statement(&pagination_statement.set, f)?;
         if let Some(ref skip) = pagination_statement.skip {
             f.write_char(' ')?;
@@ -121,7 +371,7 @@ pub trait Visitor {
             match t {
                 All => f.write_str("all")?,
                 Distinct => f.write_str("distinct")?,
-                Unique => f.write_str("unique")?
+                Unique => f.write_str("unique")?,
             }
         }
 
@@ -168,8 +418,12 @@ pub trait Visitor {
         }
         Ok(())
     }
-    fn visit_select_elements(&self, select_elements: &Vec<SelectElement>, f: &mut Formatter) -> Result {
-        for i in 0..select_elements.len(){
+    fn visit_select_elements(
+        &self,
+        select_elements: &Vec<SelectElement>,
+        f: &mut Formatter,
+    ) -> Result {
+        for i in 0..select_elements.len() {
             self.visit_select_element(&select_elements[i], f)?;
             if i != select_elements.len() - 1 {
                 f.write_str(", ")?;
@@ -187,7 +441,7 @@ pub trait Visitor {
                     self.visit_alias(alias, f)?;
                 }
                 Ok(())
-            },
+            }
             Asterisk(table_view_name) => {
                 if let Some(table_view_name) = table_view_name {
                     self.visit_identifier(table_view_name, f)?;
@@ -196,8 +450,12 @@ pub trait Visitor {
             }
         }
     }
-    fn visit_sorting_elements(&self, sorting_elements: &Vec<SortingElement>, f: &mut Formatter) -> Result {
-        for i in 0..sorting_elements.len(){
+    fn visit_sorting_elements(
+        &self,
+        sorting_elements: &Vec<SortingElement>,
+        f: &mut Formatter,
+    ) -> Result {
+        for i in 0..sorting_elements.len() {
             self.visit_sorting_element(&sorting_elements[i], f)?;
             if i != sorting_elements.len() - 1 {
                 f.write_str(", ")?;
@@ -212,12 +470,14 @@ pub trait Visitor {
             use SortingDirection::*;
             match sorting {
                 Ascending => f.write_str("asc"),
-                Descending => f.write_str("desc")
+                Descending => f.write_str("desc"),
             }
-        } else { Ok(()) }
+        } else {
+            Ok(())
+        }
     }
     fn visit_tables(&self, tables: &Vec<Box<TableView>>, f: &mut Formatter) -> Result {
-        for i in 0..tables.len(){
+        for i in 0..tables.len() {
             self.visit_table_view(&tables[i], f)?;
             if i != tables.len() - 1 {
                 f.write_str(", ")?;
@@ -236,16 +496,15 @@ pub trait Visitor {
                 } else {
                     Ok(())
                 }
-            },
+            }
             Set(statement, alias) => {
                 f.write_char('(')?;
                 self.visit_set_statement(statement, f)?;
                 f.write_char(')')?;
                 f.write_char(' ')?;
                 self.visit_alias(alias, f)
-            },
-            Join(j) => self.visit_join(j, f)
-
+            }
+            Join(j) => self.visit_join(j, f),
         }
     }
     fn visit_join(&self, join_node: &JoinNode, f: &mut Formatter) -> Result {
@@ -276,8 +535,8 @@ pub trait Visitor {
         f.write_str("as ")?;
         self.visit_identifier(alias, f)
     }
-    fn visit_expressions(&self, expressions: &Vec<Box<Expression>>,  f: &mut Formatter) -> Result {
-        for i in 0..expressions.len(){
+    fn visit_expressions(&self, expressions: &Vec<Box<Expression>>, f: &mut Formatter) -> Result {
+        for i in 0..expressions.len() {
             self.visit_expression(&expressions[i], f)?;
             if i != expressions.len() - 1 {
                 f.write_str(", ")?;
@@ -297,48 +556,55 @@ pub trait Visitor {
 
         self.visit_identifier(&table.name, f)
     }
-    fn visit_expression(&self, expr: &Expression,  f: &mut Formatter) -> Result {
-        match expr {
-            Expression::Constant(t) => self.visit_constant(t, f),
-            Expression::Column(t) => self.visit_column(t, f),
-            Expression::Function(t) => self.visit_function(t, f),
-            Expression::Arithmetic(t) => self.visit_arithmetic(t, f),
-            Expression::CaseWhen(t) => self.visit_case_when(t, f),
-            Expression::Unary(t) => self.visit_unary(t, f),
-            Expression::Variable(t) => self.visit_variable(t, f)
-        }
-    }
+
     fn visit_variable(&self, expr: &Variable, f: &mut Formatter) -> Result {
         f.write_char(':')?;
         self.visit_identifier(&expr.name, f)
     }
     fn visit_predicate(&self, expr: &PredicateExpression, f: &mut Formatter) -> Result {
         match expr {
-            PredicateExpression::Comparison(p)=> self.visit_comparison(p, f),
+            PredicateExpression::Comparison(p) => self.visit_comparison(p, f),
             PredicateExpression::Logical(p) => self.visit_logical(p, f),
             PredicateExpression::Not(p) => self.visit_not(p, f),
             PredicateExpression::IsNull(p) => self.visit_is_null(p, f),
             PredicateExpression::IsNotNull(p) => self.visit_is_not_null(p, f),
             PredicateExpression::In(p) => self.visit_in(p, f),
-            PredicateExpression::NotIn(p) => self.visit_not_in(p, f)
+            PredicateExpression::NotIn(p) => self.visit_not_in(p, f),
         }
     }
     fn visit_function(&self, function: &Function, f: &mut Formatter) -> Result {
         match function {
-            Function::Aggregate(t) => self.visit_aggregate_fn(t, f),
             Function::String(t) => self.visit_string_fn(t, f),
             Function::Cast(t) => self.visit_cast_fn(t, f),
-            Function::Numeric(t) => self.visit_numeric_fn(t, f),
-            Function::Now => f.write_str("now()"),
+
+            Function::Abs(t) => self.visit_abs_fn(t, f),
+            Function::Ceil(t) => self.visit_ceil_fn(t, f),
+            Function::Cos(t) => self.visit_cos_fn(t, f),
+            Function::DenseRank(t) => self.visit_dense_rank_fn(t, f),
+            Function::Floor(t) => self.visit_floor_fn(t, f),
+            Function::Log10(t) => self.visit_log10_fn(t, f),
+            Function::Log(t) => self.visit_log_fn(t, f),
+            Function::Pow(t) => self.visit_pow_fn(t, f),
+            Function::Rank(t) => self.visit_rank_fn(t, f),
+            Function::Round(t) => self.visit_round_fn(t, f),
+            Function::Sign(t) => self.visit_sign_fn(t, f),
+            Function::Sin(t) => self.visit_sin_fn(t, f),
+            Function::Sqrt(t) => self.visit_sqrt_fn(t, f),
+            Function::Tan(t) => self.visit_tan_fn(t, f),
+            Function::Now => self.visit_now_fn(f),
             Function::Nvl(t) => self.visit_nvl_fn(t, f),
             Function::Coalesce(t) => self.visit_coalesce_fn(t, f),
-            Function::Datetime(t) => self.visit_datetime_fn(t, f)
+            Function::Datetime(t) => self.visit_datetime_fn(t, f),
         }
+    }
+
+    fn visit_now_fn(&self, f: &mut Formatter) -> Result {
+        f.write_str("now()")
     }
     fn visit_coalesce_fn(&self, function: &CoalesceFn, f: &mut Formatter) -> Result {
         f.write_str("coalesce")?;
         f.write_char('(')?;
-        let max_index = function.items.len()  - 1;
+        let max_index = function.items.len() - 1;
         for i in 0..function.items.len() {
             self.visit_expression(&function.items[i], f)?;
             if i < max_index {
@@ -347,24 +613,7 @@ pub trait Visitor {
         }
         f.write_char(')')
     }
-    fn visit_numeric_fn(&self, function: &NumericFn, f: &mut Formatter) -> Result {
-        match function {
-            NumericFn::Abs(t) => self.visit_abs_fn(t, f),
-            NumericFn::Ceil(t) => self.visit_ceil_fn(t, f),
-            NumericFn::Cos(t) => self.visit_cos_fn(t, f),
-            NumericFn::DenseRank(t) => self.visit_dense_rank_fn(t, f),
-            NumericFn::Floor(t) => self.visit_floor_fn(t, f),
-            NumericFn::Log10(t) => self.visit_log10_fn(t, f),
-            NumericFn::Log(t) => self.visit_log_fn(t, f),
-            NumericFn::Pow(t) => self.visit_pow_fn(t, f),
-            NumericFn::Rank(t) => self.visit_rank_fn(t, f),
-            NumericFn::Round(t) => self.visit_round_fn(t, f),
-            NumericFn::Sign(t) => self.visit_sign_fn(t, f),
-            NumericFn::Sin(t) => self.visit_sin_fn(t, f),
-            NumericFn::Sqrt(t) => self.visit_sqrt_fn(t, f),
-            NumericFn::Tan(t) => self.visit_tan_fn(t, f)
-        }
-    }
+
     fn visit_abs_fn(&self, function: &AbsFn, f: &mut Formatter) -> Result {
         f.write_str("abs")?;
         f.write_char('(')?;
@@ -392,7 +641,7 @@ pub trait Visitor {
             use SortingDirection::*;
             match order {
                 Ascending => f.write_str("asc")?,
-                Descending => f.write_str("desc")?
+                Descending => f.write_str("desc")?,
             }
         }
         f.write_char(')')
@@ -406,7 +655,7 @@ pub trait Visitor {
             use SortingDirection::*;
             match order {
                 Ascending => f.write_str("asc")?,
-                Descending => f.write_str("desc")?
+                Descending => f.write_str("desc")?,
             }
         }
         f.write_char(')')
@@ -491,7 +740,7 @@ pub trait Visitor {
             YearAdd(t) => self.visit_year_add_fn(t, f),
             YearSub(t) => self.visit_year_sub_fn(t, f),
             Extract(t) => self.visit_extract_fn(t, f),
-            Diff(t) => self.visit_diff_fn(t, f)
+            Diff(t) => self.visit_diff_fn(t, f),
         }
     }
     fn visit_diff_fn(&self, function: &DatetimeDiffFn, f: &mut Formatter) -> Result {
@@ -505,8 +754,13 @@ pub trait Visitor {
         f.write_char(')')
     }
     fn visit_extract_fn(&self, function: &ExtractFn, f: &mut Formatter) -> Result {
-        self.visit_datetime_type(&function.extract_type, f)?;
+        f.write_str("extract")?;
         f.write_char('(')?;
+
+        self.visit_datetime_type(&function.extract_type, f)?;
+        f.write_char(' ')?;
+        f.write_str("from")?;
+        f.write_char(' ')?;
         self.visit_expression(&function.expr, f)?;
         f.write_char(')')
     }
@@ -518,8 +772,41 @@ pub trait Visitor {
             Day => f.write_str("day"),
             Hour => f.write_str("hour"),
             Minute => f.write_str("minute"),
-            Second => f.write_str("second")
+            Second => f.write_str("second"),
         }
+    }
+
+    fn visit_year_add_fn(&self, function: &YearAddFn, f: &mut Formatter) -> Result {
+        f.write_str("year_add")?;
+        f.write_char('(')?;
+        self.visit_expression(&function.expr, f)?;
+        f.write_str(", ")?;
+        self.visit_expression(&function.offset, f)?;
+        f.write_char(')')
+    }
+    fn visit_year_sub_fn(&self, function: &YearSubFn, f: &mut Formatter) -> Result {
+        f.write_str("year_sub")?;
+        f.write_char('(')?;
+        self.visit_expression(&function.expr, f)?;
+        f.write_str(", ")?;
+        self.visit_expression(&function.offset, f)?;
+        f.write_char(')')
+    }
+    fn visit_month_add_fn(&self, function: &MonthAddFn, f: &mut Formatter) -> Result {
+        f.write_str("month_add")?;
+        f.write_char('(')?;
+        self.visit_expression(&function.expr, f)?;
+        f.write_str(", ")?;
+        self.visit_expression(&function.offset, f)?;
+        f.write_char(')')
+    }
+    fn visit_month_sub_fn(&self, function: &MonthSubFn, f: &mut Formatter) -> Result {
+        f.write_str("month_sub")?;
+        f.write_char('(')?;
+        self.visit_expression(&function.expr, f)?;
+        f.write_str(", ")?;
+        self.visit_expression(&function.offset, f)?;
+        f.write_char(')')
     }
     fn visit_day_add_fn(&self, function: &DayAddFn, f: &mut Formatter) -> Result {
         f.write_str("day_add")?;
@@ -569,22 +856,6 @@ pub trait Visitor {
         self.visit_expression(&function.offset, f)?;
         f.write_char(')')
     }
-    fn visit_month_add_fn(&self, function: &MonthAddFn, f: &mut Formatter) -> Result {
-        f.write_str("month_add")?;
-        f.write_char('(')?;
-        self.visit_expression(&function.expr, f)?;
-        f.write_str(", ")?;
-        self.visit_expression(&function.offset, f)?;
-        f.write_char(')')
-    }
-    fn visit_month_sub_fn(&self, function: &MonthSubFn, f: &mut Formatter) -> Result {
-        f.write_str("month_sub")?;
-        f.write_char('(')?;
-        self.visit_expression(&function.expr, f)?;
-        f.write_str(", ")?;
-        self.visit_expression(&function.offset, f)?;
-        f.write_char(')')
-    }
     fn visit_second_add_fn(&self, function: &SecondAddFn, f: &mut Formatter) -> Result {
         f.write_str("second_add")?;
         f.write_char('(')?;
@@ -595,22 +866,6 @@ pub trait Visitor {
     }
     fn visit_second_sub_fn(&self, function: &SecondSubFn, f: &mut Formatter) -> Result {
         f.write_str("second_sub")?;
-        f.write_char('(')?;
-        self.visit_expression(&function.expr, f)?;
-        f.write_str(", ")?;
-        self.visit_expression(&function.offset, f)?;
-        f.write_char(')')
-    }
-    fn visit_year_add_fn(&self, function: &YearAddFn, f: &mut Formatter) -> Result {
-        f.write_str("year_add")?;
-        f.write_char('(')?;
-        self.visit_expression(&function.expr, f)?;
-        f.write_str(", ")?;
-        self.visit_expression(&function.offset, f)?;
-        f.write_char(')')
-    }
-    fn visit_year_sub_fn(&self, function: &YearSubFn, f: &mut Formatter) -> Result {
-        f.write_str("year_sub")?;
         f.write_char('(')?;
         self.visit_expression(&function.expr, f)?;
         f.write_str(", ")?;
@@ -633,31 +888,30 @@ pub trait Visitor {
     fn visit_arithmetic(&self, expr: &ArithmeticExpression, f: &mut Formatter) -> Result {
         self.visit_expression(&expr.left, f)?;
 
-        let is_add_or_sub: fn(&Expression) -> bool = | e| {
-            match e {
-                Expression::Arithmetic(t)  => {
-                    match t.op {
-                        ArithmeticOperator::Add | ArithmeticOperator::Sub => true,
-                        _ => false
-                    }
+        let is_add_or_sub: fn(&Expression) -> bool = |e| match e {
+            Expression::Scalar(t) => match t {
+                ScalarExpression::Arithmetic(t) => match t.op {
+                    ArithmeticOperator::Add | ArithmeticOperator::Sub => true,
+                    _ => false,
                 },
-                _ => false
-            }
+                _ => false,
+            },
+            _ => false,
         };
 
         match expr.op {
             ArithmeticOperator::Add => {
                 f.write_str(" + ")?;
                 self.visit_expression(&expr.right, f)
-            },
+            }
             ArithmeticOperator::Sub => {
                 f.write_str(" - ")?;
                 self.visit_expression(&expr.right, f)
-            },
+            }
             ArithmeticOperator::Mul => {
                 f.write_str(" * ")?;
                 self.visit_expression(&expr.right, f)
-            },
+            }
             ArithmeticOperator::Div => {
                 if is_add_or_sub(expr.right.as_ref()) {
                     f.write_str(" / ")?;
@@ -668,9 +922,8 @@ pub trait Visitor {
                     f.write_str(" / ")?;
                     self.visit_expression(&expr.right, f)
                 }
-            },
+            }
         }
-
     }
     fn visit_case_when(&self, expr: &CaseWhenExpression, f: &mut Formatter) -> Result {
         match expr {
@@ -683,7 +936,7 @@ pub trait Visitor {
             UnaryExpression::Plus(t) => {
                 f.write_char('+')?;
                 self.visit_expression(t, f)
-            },
+            }
             UnaryExpression::Minus(t) => {
                 f.write_char('-')?;
                 self.visit_expression(t, f)
@@ -694,7 +947,7 @@ pub trait Visitor {
         f.write_str("case")?;
         f.write_char(' ')?;
         self.visit_expression(&expr.expr, f)?;
-        for (when ,then) in &expr.matches {
+        for (when, then) in &expr.matches {
             f.write_char(' ')?;
             f.write_str("when")?;
             f.write_char(' ')?;
@@ -715,9 +968,13 @@ pub trait Visitor {
         f.write_char(' ')?;
         f.write_str("end")
     }
-    fn visit_searched_case_when(&self, expr: &SearchedCaseWhenExpression, f: &mut Formatter) -> Result {
+    fn visit_searched_case_when(
+        &self,
+        expr: &SearchedCaseWhenExpression,
+        f: &mut Formatter,
+    ) -> Result {
         f.write_str("case")?;
-        for (when ,then) in &expr.matches {
+        for (when, then) in &expr.matches {
             f.write_char(' ')?;
             f.write_str("when")?;
             f.write_char(' ')?;
@@ -739,95 +996,7 @@ pub trait Visitor {
         f.write_char(' ')?;
         f.write_str("end")
     }
-    fn visit_aggregate_fn(&self, function: &AggregateFn, f: &mut Formatter) -> Result {
-        match function {
-            AggregateFn::Avg(t) => self.visit_avg_fn(t, f),
-            AggregateFn::Count(t) => self.visit_count_fn(t, f),
-            AggregateFn::Max(t) => self.visit_max_fn(t, f),
-            AggregateFn::Median(t) => self.visit_median_fn(t, f),
-            AggregateFn::Min(t) => self.visit_min_fn(t, f),
-            AggregateFn::Sum(t) => self.visit_sum_fn(t, f),
-            AggregateFn::Stddev(t) => self.visit_stddev_fn(t, f)
-        }
-    }
-    fn visit_aggregate_type(&self, aggregate_type: &AggregateType, f: &mut Formatter) -> Result {
-        use AggregateType::*;
-        match aggregate_type {
-            Distinct => f.write_str("distinct"),
-            All => f.write_str("all"),
-            Unique => f.write_str("unique")
-        }
-    }
-    fn visit_stddev_fn(&self, function: &StddevFn, f: &mut Formatter) -> Result {
-        f.write_str("stddev")?;
-        f.write_char('(')?;
-        if let Some(ref t) = function.aggregate_type {
-            self.visit_aggregate_type(t, f)?;
-            f.write_char(' ')?;
-        }
-        self.visit_expression(&function.expr, f)?;
-        f.write_char(')')
-    }
-    fn visit_avg_fn(&self, function: &AvgFn, f: &mut Formatter) -> Result {
-        f.write_str("avg")?;
-        f.write_char('(')?;
-        if let Some(ref t) = function.aggregate_type {
-            self.visit_aggregate_type(t, f)?;
-            f.write_char(' ')?;
-        }
-        self.visit_expression(&function.expr, f)?;
-        f.write_char(')')
-    }
-    fn visit_count_fn(&self, function: &CountFn, f: &mut Formatter) -> Result {
-        f.write_str("count")?;
-        f.write_char('(')?;
-        if let Some(ref t) = function.aggregate_type {
-            self.visit_aggregate_type(t, f)?;
-            f.write_char(' ')?;
-        }
-        self.visit_expression(&function.expr, f)?;
-        f.write_char(')')
-    }
-    fn visit_max_fn(&self, function: &MaxFn, f: &mut Formatter) -> Result {
-        f.write_str("max")?;
-        f.write_char('(')?;
-        if let Some(ref t) = function.aggregate_type {
-            self.visit_aggregate_type(t, f)?;
-            f.write_char(' ')?;
-        }
-        self.visit_expression(&function.expr, f)?;
-        f.write_char(')')
-    }
-    fn visit_median_fn(&self, function: &MedianFn, f: &mut Formatter) -> Result {
-        f.write_str("median")?;
-        f.write_char('(')?;
-        if let Some(ref t) = function.aggregate_type {
-            self.visit_aggregate_type(t, f)?;
-            f.write_char(' ')?;
-        }
-        self.visit_expression(&function.expr, f)?;
-        f.write_char(')')
-    }
-    fn visit_min_fn(&self, function: &MinFn, f: &mut Formatter) -> Result {
-        f.write_str("min")?;
-        f.write_char('(')?;
-        if let Some(ref t) = function.aggregate_type {
-            self.visit_aggregate_type(t, f)?;
-            f.write_char(' ')?;
-        }
-        self.visit_expression(&function.expr, f)?;
-        f.write_char(')')
-    }
-    fn visit_sum_fn(&self, function: &SumFn, f: &mut Formatter) -> Result {
-        f.write_str("sum")?;
-        f.write_char('(')?;
-        if let Some(ref t) = function.aggregate_type {
-            self.visit_aggregate_type(t, f)?;
-            f.write_char(' ')?;
-        }
-        self.visit_expression(&function.expr, f)?;
-        f.write_char(')')
-    }
+
     fn visit_string_fn(&self, function: &StringFn, f: &mut Formatter) -> Result {
         match function {
             StringFn::Concat(t) => self.visit_concat_fn(t, f),
@@ -847,7 +1016,7 @@ pub trait Visitor {
     fn visit_concat_fn(&self, function: &ConcatFn, f: &mut Formatter) -> Result {
         f.write_str("concat")?;
         f.write_char('(')?;
-        let max_index= function.items.len() - 1;
+        let max_index = function.items.len() - 1;
         for i in 0..function.items.len() {
             self.visit_expression(&function.items[i], f)?;
             if i < max_index {
@@ -941,8 +1110,7 @@ pub trait Visitor {
             Both => f.write_str("trim")?,
             Leading => f.write_str("trim_start")?,
             Trailing => f.write_str("trim_end")?,
-        }
-        ;
+        };
         f.write_char('(')?;
         self.visit_expression(&function.text, f)?;
         if let Some(ref t) = function.trim_text {
@@ -995,7 +1163,18 @@ pub trait Visitor {
         }
     }
     fn visit_logical(&self, expr: &LogicalExpression, f: &mut Formatter) -> Result {
-        self.visit_predicate(&expr.left, f)?;
+        if let PredicateExpression::Logical(ref p) = expr.left.as_ref() {
+            if let LogicalOperator::Or = p.op {
+                f.write_char('(')?;
+                self.visit_logical(p, f)?;
+                f.write_char(')')?;
+            } else {
+                self.visit_logical(p, f)?;
+            }
+        } else {
+            self.visit_predicate(&expr.left, f)?;
+        }
+
         f.write_str(" ")?;
         self.visit_logical_operator(&expr.op, f)?;
         f.write_str(" ")?;
@@ -1005,7 +1184,9 @@ pub trait Visitor {
                 f.write_char('(')?;
                 self.visit_logical(p, f)?;
                 f.write_char(')')
-            } else { self.visit_logical(p, f) }
+            } else {
+                self.visit_logical(p, f)
+            }
         } else {
             self.visit_predicate(&expr.right, f)
         }
@@ -1014,7 +1195,7 @@ pub trait Visitor {
         use LogicalOperator::*;
         match op {
             And => f.write_str("and"),
-            Or => f.write_str("or")
+            Or => f.write_str("or"),
         }
     }
     fn visit_not(&self, expr: &NotExpression, f: &mut Formatter) -> Result {
@@ -1054,25 +1235,27 @@ pub trait Visitor {
                     }
                 }
                 Ok(())
-            },
-            InElements::Set(s) => {
-                self.visit_set_statement(s, f)
             }
+            InElements::Set(s) => self.visit_set_statement(s, f),
         }
     }
     fn visit_string(&self, v: &StringValue, f: &mut Formatter) -> Result {
         write!(f, "'{}'", v.value)
     }
-    fn visit_numeric(&self, v: &NumericValue, f: &mut Formatter) -> Result{
+    fn visit_numeric(&self, v: &NumericValue, f: &mut Formatter) -> Result {
         match v {
             NumericValue::Integer(t) => write!(f, "{}", t),
             NumericValue::Float(t) => write!(f, "{}", t),
         }
     }
-    fn visit_null(&self, f: &mut Formatter) -> Result{
-        write!(f, "null")
+    fn visit_null(&self, f: &mut Formatter) -> Result {
+        self.format_letter("null", f)
     }
     fn visit_identifier(&self, identifier: &Identifier, f: &mut Formatter) -> Result {
         write!(f, "{}", identifier)
+    }
+
+    fn format_letter(&self, letter: &str, f: &mut Formatter) -> Result {
+        f.write_str(letter)
     }
 }

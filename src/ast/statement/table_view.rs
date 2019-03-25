@@ -6,14 +6,14 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use ast::Table;
 use ast::Identifier;
-use ast::SetStatement;
 use ast::JoinNode;
+use ast::SetStatement;
+use ast::Table;
 
 #[derive(Clone, Debug)]
 pub enum TableView {
     Table(Table, Option<Identifier>),
     Set(Box<SetStatement>, Identifier),
-    Join(Box<JoinNode>)
+    Join(Box<JoinNode>),
 }

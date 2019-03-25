@@ -6,9 +6,9 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use super::location::ByteOffset;
 use super::location::Position;
 use super::location::Span;
-use super::location::ByteOffset;
 
 pub trait ParserSource {
     fn src(&self) -> &str;
@@ -21,8 +21,8 @@ pub trait ParserSource {
 }
 
 impl<'a, S> ParserSource for &'a S
-    where
-        S: ?Sized + ParserSource,
+where
+    S: ?Sized + ParserSource,
 {
     fn src(&self) -> &str {
         (**self).src()

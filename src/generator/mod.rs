@@ -6,41 +6,71 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-
 mod visitor;
 
-use ast::{Expression, PredicateExpression,Statement};
+mod mysql;
+mod oracle;
+mod pgsql;
+mod sql_server;
+mod sqlite;
+
+pub use self::mysql::MySQLGenerator;
+pub use self::oracle::OracleGenerator;
+pub use self::pgsql::PgsqlGenerator;
+pub use self::sql_server::SqlServerGenerator;
+pub use self::sqlite::SQLiterGenerator;
+
 use self::visitor::Visitor;
+use ast::*;
+use std::fmt::{Error, Result, Write};
 use std::result;
-use std::fmt::Error;
+type Formatter = String;
 
 pub trait Generator<T> {
     fn to_sql(&self) -> result::Result<String, Error>;
 }
 
-impl Visitor for Expression {
-}
+struct InternalGenerator;
 
-impl Visitor for PredicateExpression {
-}
+impl Visitor for InternalGenerator {
+    fn visit_percentile(&self, function: &PercentileFn, f: &mut Formatter) -> Result {
+        match function.r#type {
+            PercentileType::Cont => f.write_str("percentile")?,
+            PercentileType::Disc => f.write_str("percentile_disc")?,
+        };
+        f.write_char('(')?;
+        self.visit_expression(&function.expr, f)?;
+        f.write_str(", ")?;
+        self.visit_expression(&function.p, f)?;
+        if let Some(t) = function.order.as_ref() {
+            match t {
+                SortingDirection::Ascending => f.write_str(", asc")?,
+                SortingDirection::Descending => f.write_str(", desc")?,
+            }
+        }
+        f.write_char(')')
+    }
 
-impl Visitor for Statement {
+    fn visit_extract_fn(&self, function: &ExtractFn, f: &mut Formatter) -> Result {
+        self.visit_datetime_type(&function.extract_type, f)?;
+        f.write_char('(')?;
+        self.visit_expression(&function.expr, f)?;
+        f.write_char(')')
+    }
 }
-
 
 impl Generator<Expression> for Expression {
     fn to_sql(&self) -> result::Result<String, Error> {
         let mut s = String::new();
-        self.visit_expression(self, &mut s)?;
+        InternalGenerator.visit_expression(self, &mut s)?;
         Ok(s)
     }
 }
 
-
 impl Generator<PredicateExpression> for PredicateExpression {
     fn to_sql(&self) -> result::Result<String, Error> {
         let mut s = String::new();
-        self.visit_predicate(self, &mut s)?;
+        InternalGenerator.visit_predicate(self, &mut s)?;
         Ok(s)
     }
 }
@@ -48,7 +78,7 @@ impl Generator<PredicateExpression> for PredicateExpression {
 impl Generator<Statement> for Statement {
     fn to_sql(&self) -> result::Result<String, Error> {
         let mut s = String::new();
-        self.visit_statement(self, &mut s)?;
+        InternalGenerator.visit_statement(self, &mut s)?;
         Ok(s)
     }
 }

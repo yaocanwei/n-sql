@@ -34,6 +34,8 @@ impl From<String> for Identifier {
 
 impl<'input> From<&'input str> for Identifier {
     fn from(value: &'input str) -> Self {
-        Identifier { value: value.to_string() }
+        Identifier {
+            value: value.to_string(),
+        }
     }
 }

@@ -12,339 +12,171 @@ extern crate codespan;
 extern crate codespan_reporting;
 extern crate regex;
 
-mod location;
 mod char_locations;
+mod comment;
+mod location;
 mod parser_source;
 mod source;
-mod comment;
+mod token;
 
-use self::regex::{RegexSetBuilder, RegexSet};
+use self::regex::{RegexSet, RegexSetBuilder};
 
 use self::char_locations::CharLocations;
 use self::comment::*;
 use self::source::Source;
 
-use self::LexicalError::*;
-use self::location::{spanned, ByteOffset, Line, Column, ColumnOffset, Span};
-pub use self::location::{Position, Spanned, Location};
+use self::location::{spanned, ByteOffset, Column, ColumnOffset, Line, Span};
+pub use self::location::{Location, Position, Spanned};
 pub use self::parser_source::ParserSource;
+use self::LexicalError::*;
 
+pub use self::token::Token;
+use lexer::token::Token::EOF;
 
-#[derive(Clone, PartialEq, Debug)]
-pub enum Token<'input> {
-    Identifier(&'input str),
-
-    StringLiteral(String),
-    IntLiteral(i64),
-    ByteLiteral(u8),
-    FloatLiteral(f64),
-    DocComment(Comment),
-
-    // region [builtin datatype]
-    Text,
-    Int,
-    Float,
-    Numeric,
-    Timestamp,
-    Datetime,
-    Date,
-    Time,
-    // endregion
-
-    // region [Symbol]
-    /// `(`
-    LeftParen,
-    /// `)`
-    RightParen,
-    /// `|`
-    Pipe,
-    /// `||`
-    DoublePipe,
-    /// `,`
-    Comma,
-    /// `:`
-    Colon,
-    /// `::`
-    DoubleColon,
-    /// `.`
-    Period,
-    /// `=`
-    Equal,
-    /// `!=`,`<>`, `^=`, `~=`
-    NotEqual,
-    /// `<`
-    Less,
-    /// `<=`
-    LessOrEqual,
-    /// `>`
-    Greater,
-    /// `>=`
-    GreaterOrEqual,
-    /// `+`
-    PlusSign,
-    /// `-`
-    MinusSign,
-    /// `*`
-    Asterisk,
-    /// `/`
-    Solidus,
-
-    // endregion
-
-    // region [keywords]
-    All,
-    And,
-    As,
-    Asc,
-    Both,
-    By,
-    Case,
-    Cross,
-    Desc,
-    Distinct,
-    Dual,
-    Else,
-    End,
-    Except,
-    From,
-    Full,
-    Group,
-    Having,
-    In,
-    Is,
-    Inner,
-    Intersect,
-    Join,
-    Leading,
-    Left,
-    Limit,
-    Minus,
-    Not,
-    Null,
-    Offset,
-    On,
-    Or,
-    Order,
-    Outer,
-    Right,
-    Select,
-    Skip,
-    Then,
-    Trailing,
-    Union,
-    Unique,
-    When,
-    Where,
-    // endregion
-
-    // region [function]
-    Abs,
-    Avg,
-    AvgIf,
-    BTrim,
-    Cast,
-    Ceil,
-    Ceiling,
-    Coalesce,
-    Cos,
-    Concat,
-    Count,
-    CountIf,
-    Day,
-    DayAdd,
-    DaySub,
-    Decode,
-    DenseRank,
-    Extract,
-    Floor,
-    Hour,
-    HourAdd,
-    HourSub,
-    Length,
-    Log,
-    Log10,
-    Lower,
-    LPad,
-    LTrim,
-    Max,
-    MaxIf,
-    Median,
-    MedianIf,
-    Min,
-    MinIf,
-    Minute,
-    MinuteAdd,
-    MinuteSub,
-    Month,
-    MonthAdd,
-    MonthSub,
-    Now,
-    Nvl,
-    PadLeft,
-    PadRight,
-    Pow,
-    Power,
-    Replace,
-    Reverse,
-    Rank,
-    Round,
-    Sign,
-    Sin,
-    Sqrt,
-    Stddev,
-    StddevIf,
-    RPad,
-    RTrim,
-    Second,
-    SecondAdd,
-    SecondSub,
-    Substr,
-    Substring,
-    Sum,
-    SumIf,
-    Tan,
-    Trim,
-    TrimStart,
-    TrimEnd,
-    Upper,
-    Year,
-    YearAdd,
-    YearSub,
-    // endregion
-    EOF, // Required for the layout algorithm
-}
-
-const REGEX_SOURCE:[(&str, Token); 123] = [
+//noinspection SpellCheckingInspection
+const REGEX_SOURCE: [(&str, Token); 135] = [
     // region [keyword]
-    ("^([Aa][Ll][Ll])$", Token::All),
-    ("^([Aa][Nn][Dd])$", Token::And),
-    ("^([Aa][Ss])$", Token::As),
-    ("^([Aa][Ss][Cc])$", Token::Asc),
-    ("^([Bb][Oo][Tt][Hh])$", Token::Both),
-    ("^([Bb][Yy])$", Token::By),
-    ("^([Cc][Aa][Ss][Ee])$", Token::Case),
-    ("^([Cc][Rr][Oo][Ss][Ss])$", Token::Cross),
-    ("^([Dd][Ee][Ss][Cc])$", Token::Desc),
-    ("^([Dd][Ii][Ss][Tt][Ii][Nn][Cc][Tt])$", Token::Distinct),
-    ("^([Dd][Uu][Aa][Ll])$", Token::Dual),
-    ("^([Ee][Ll][Ss][Ee])$", Token::Else),
-    ("^([Ee][Nn][Dd])$", Token::End),
-    ("^([Ee][Xx][Cc][Ee][Pp][Tt])$", Token::Except),
-    ("^([Ff][Rr][Oo][Mm])$", Token::From),
-    ("^([Ff][Uu][Ll][Ll])$", Token::Full),
-    ("^([Gg][Rr][Oo][Uu][Pp])$", Token::Group),
-    ("^([Hh][Aa][Vv][Ii][Nn][Gg])$", Token::Having),
-    ("^([Ii][Nn])$", Token::In),
-    ("^([Ii][Ss])$", Token::Is),
-    ("^([Ii][Nn][Nn][Ee][Rr])$", Token::Inner),
-    ("^([Ii][Nn][Tt][Ee][Rr][Ss][Ee][Cc][Tt])$", Token::Intersect),
-    ("^([Jj][Oo][Ii][Nn])$", Token::Join),
-    ("^([Ll][Ee][Aa][Dd][Ii][Nn][Gg])$", Token::Leading),
-    ("^([Ll][Ee][Ff][Tt])$", Token::Left),
-    ("^([Ll][Ii][Mm][Ii][Tt])$", Token::Limit),
-    ("^([Mm][Ii][Nn][Uu][Ss])$", Token::Minus),
-    ("^([Nn][Oo][Tt])$", Token::Not),
-    ("^([Nn][Uu][Ll][Ll])$", Token::Null),
-    ("^([Oo][Ff][Ff][Ss][Ee][Tt])$", Token::Offset),
-    ("^([Oo][Nn])$", Token::On),
-    ("^([Oo][Rr])$", Token::Or),
-    ("^([Oo][Rr][Dd][Ee][Rr])$", Token::Order),
-    ("^([Oo][Uu][Tt][Ee][Rr])$", Token::Outer),
-    ("^([Rr][Ii][Gg][Hh][Tt])$", Token::Right),
-    ("^([Ss][Ee][Ll][Ee][Cc][Tt])$", Token::Select),
-    ("^([Ss][Kk][Ii][Pp])$", Token::Skip),
-    ("^([Tt][Hh][Ee][Nn])$", Token::Then),
-    ("^([Tt][Rr][Aa][Ii][Ll][Ii][Nn][Gg])$", Token::Trailing),
-    ("^([Uu][Nn][Ii][Oo][Nn])$", Token::Union),
-    ("^([Uu][Nn][Ii][Qq][Uu][Ee])$", Token::Unique),
-    ("^([Ww][Hh][Ee][Nn])$", Token::When),
-    ("^([Ww][Hh][Ee][Rr][Ee])$", Token::Where),
+    ("^(?i)all$", Token::All),
+    ("^(?i)and$", Token::And),
+    ("^(?i)as$", Token::As),
+    ("^(?i)asc$", Token::Asc),
+    ("^(?i)both$", Token::Both),
+    ("^(?i)by$", Token::By),
+    ("^(?i)case$", Token::Case),
+    ("^(?i)cross$", Token::Cross),
+    ("^(?i)desc$", Token::Desc),
+    ("^(?i)distinct", Token::Distinct),
+    ("^(?i)dual$", Token::Dual),
+    ("^(?i)else$", Token::Else),
+    ("^(?i)end$", Token::End),
+    ("^(?i)except$", Token::Except),
+    ("^(?i)from$", Token::From),
+    ("^(?i)full$", Token::Full),
+    ("^(?i)group$", Token::Group),
+    ("^(?i)having$", Token::Having),
+    ("^(?i)in$", Token::In),
+    ("^(?i)is$", Token::Is),
+    ("^(?i)inner$", Token::Inner),
+    ("^(?i)intersect$", Token::Intersect),
+    ("^(?i)join$", Token::Join),
+    ("^(?i)leading$", Token::Leading),
+    ("^(?i)left$", Token::Left),
+    ("^(?i)limit$", Token::Limit),
+    ("^(?i)minus$", Token::Minus),
+    ("^(?i)not$", Token::Not),
+    ("^(?i)null$", Token::Null),
+    ("^(?i)offset$", Token::Offset),
+    ("^(?i)on$", Token::On),
+    ("^(?i)or$", Token::Or),
+    ("^(?i)order$", Token::Order),
+    ("^(?i)outer$", Token::Outer),
+    ("^(?i)right", Token::Right),
+    ("^(?i)select$", Token::Select),
+    ("^(?i)skip$", Token::Skip),
+    ("^(?i)then$", Token::Then),
+    ("^(?i)trailing$", Token::Trailing),
+    ("^(?i)union$", Token::Union),
+    ("^(?i)unique$", Token::Unique),
+    ("^(?i)when$", Token::When),
+    ("^(?i)where$", Token::Where),
+    ("^(?i)with$", Token::With),
+    ("^(?i)within$", Token::Within),
     // endregion,
 
     // region [function]
-    ("^([Aa][Bb][Ss])$", Token::Abs),
-    ("^([Aa][Vv][Gg])$", Token::Avg),
-    ("^([Aa][Vv][Gg][Ii][Ff])$", Token::AvgIf),
-    ("^([Bb][Tt][Rr][Ii][Mm])$", Token::BTrim),
-    ("^([Cc][Aa][Ss][Tt])$", Token::Cast),
-    ("^([Cc][Ee][Ii][Ll])$", Token::Ceil),
-    ("^([Cc][Ee][Ii][Ll][Ii][Nn][Gg])$", Token::Ceiling),
-    ("^([Cc][Oo][Aa][Ll][Ee][Ss][Cc][Ee])$", Token::Coalesce),
-    ("^([Cc][Oo][Ss])$", Token::Cos),
-    ("^([Cc][Oo][Nn][Cc][Aa][Tt])$", Token::Concat),
-    ("^([Cc][Oo][Uu][Nn][Tt])$", Token::Count),
-    ("^([Cc][Oo][Uu][Nn][Tt][Ii][Ff])$", Token::CountIf),
-    ("^([Dd][Aa][Yy])$", Token::Day),
-    ("^([Dd][Aa][Yy]_[Aa][Dd][Dd])$", Token::DayAdd),
-    ("^([Dd][Aa][Yy]_[Ss][Uu][Bb])$", Token::DaySub),
-    ("^([Dd][Ee][Cc][Oo][Dd][Ee])$", Token::Decode),
-    ("^([Dd][Ee][Nn][Ss][Ee]_[Rr][Aa][Nn][Kk])$", Token::DenseRank),
-    ("^([Ee][Xx][Tt][Rr][Aa][Cc][Tt])$", Token::Extract),
-    ("^([Ff][Ll][Oo][Oo][Rr])$", Token::Floor),
-    ("^([Hh][Oo][Uu][Rr])$", Token::Hour),
-    ("^([HH][Oo][Uu][Rr]_[Aa][Dd][Dd])$", Token::HourAdd),
-    ("^([HH][Oo][Uu][Rr]_[Ss][Uu][Bb])$", Token::HourSub),
-    ("^([Ll][Ee][Nn][Gg][Tt][Hh])$", Token::Length),
-    ("^([Ll][Oo][Gg])$", Token::Log),
-    ("^([Ll][Oo][Gg]10)$", Token::Log10),
-    ("^([Ll][Oo][Ww][Ee][Rr])$", Token::Lower),
-    ("^([Ll][Pp][Aa][Dd])$", Token::LPad),
-    ("^([Ll][Tt][Rr][Ii][Mm])$", Token::LTrim),
-    ("^([Mm][Aa][Xx])$", Token::Max),
-    ("^([Mm][Aa][Xx][Ii][Ff])$", Token::MaxIf),
-    ("^([Mm][Ee][Dd][Ii][Aa][Nn])$", Token::Median),
-    ("^([Mm][Ee][Dd][Ii][Aa][Nn][Ii][Ff])$", Token::MedianIf),
-    ("^([Mm][Ii][Nn])$", Token::Min),
-    ("^([Mm][Ii][Nn][Ii][Ff])$", Token::MinIf),
-    ("^([Mm][Ii][Nn][Uu][Tt][Ee])$", Token::Minute),
-    ("^([Mm][Ii][Nn][Uu][Tt][Ee]_[Aa][Dd][Dd])$", Token::MinuteAdd),
-    ("^([Mm][Ii][Nn][Uu][Tt][Ee]_[Ss][Uu][Bb])$", Token::MinuteSub),
-    ("^([Mm][Oo][Nn][Tt][Hh])$", Token::Month),
-    ("^([Mm][Oo][Nn][Tt][Hh]_[Aa][Dd][Dd])$", Token::MonthAdd),
-    ("^([Mm][Oo][Nn][Tt][Hh]_[Ss][Uu][Bb])$", Token::MonthSub),
-    ("^([Nn][Oo][Ww])$", Token::Now),
-    ("^([Nn][Vv][Ll])$", Token::Nvl),
-    ("^([Pp][Aa][Dd]_[Ll][Ee][Ff][Tt])$", Token::PadLeft),
-    ("^([Pp][Aa][Dd]_[Rr][Ii][Gg][Hh][Tt])$", Token::PadRight),
-    ("^([Pp][Oo][Ww])$", Token::Pow),
-    ("^([Pp][Oo][Ww][Ee][Rr])$", Token::Power),
-    ("^([Rr][Ee][Pp][Ll][Aa][Cc][Ee])$", Token::Replace),
-    ("^([Rr][Ee][Vv][Ee][Rr][Ss][Ee])$", Token::Reverse),
-    ("^([Rr][Aa][Nn][Kk])$", Token::Rank),
-    ("^([Rr][Oo][Uu][Nn][Dd])$", Token::Round),
-    ("^([Ss][Ii][Gg][Nn])$", Token::Sign),
-    ("^([Ss][Ii][Nn])$", Token::Sin),
-    ("^([Ss][Qq][Rr][Tt])$", Token::Sqrt),
-    ("^([Ss][Tt][Dd][Dd][Ee][Vv])$", Token::Stddev),
-    ("^([Ss][Tt][Dd][Dd][Ee][Vv][Ii][Ff])$", Token::StddevIf),
-    ("^([Rr][Pp][Aa][Dd])$", Token::RPad),
-    ("^([Rr][Tt][Rr][Ii][Mm])$", Token::RTrim),
-    ("^([Ss][Ee][Cc][Oo][Nn][Dd])$", Token::Second),
-    ("^([Ss][Ee][Cc][Oo][Nn][Dd]_[Aa][Dd][Dd])$", Token::SecondAdd),
-    ("^([Ss][Ee][Cc][Oo][Nn][Dd]_[Ss][Uu][Bb])$", Token::SecondSub),
-    ("^([Ss][Uu][Bb][Ss][Tt][Rr])$", Token::Substr),
-    ("^([Ss][Uu][Bb][Ss][Tt][Rr][Ii][Nn][Gg])$", Token::Substring),
-    ("^([Ss][Uu][Mm])$", Token::Sum),
-    ("^([Ss][Uu][Mm][Ii][Ff])$", Token::SumIf),
-    ("^([Tt][Aa][Nn])$", Token::Tan),
-    ("^([Tt][Rr][Ii][Mm])$", Token::Trim),
-    ("^([Tt][Rr][Ii][Mm]_[Ss][Tt][Aa][Rr][Tt])$", Token::TrimStart),
-    ("^([Tt][Rr][Ii][Mm]_[Ee][Nn][Dd])$", Token::TrimEnd),
-    ("^([Uu][Pp][Pp][Ee][Rr])$", Token::Upper),
-    ("^([Yy][Ee][Aa][Rr])$", Token::Year),
-    ("^([Yy][Ee][Aa][Rr]_[Aa][Dd][Dd])$", Token::YearAdd),
-    ("^([Yy][Ee][Aa][Rr]_[Ss][Uu][Bb])$", Token::YearSub),
+    ("^(?i)abs", Token::Abs),
+    ("^(?i)avg$", Token::Avg),
+    ("^(?i)avgif$", Token::AvgIf),
+    ("^(?i)btrim$", Token::BTrim),
+    ("^(?i)cast$", Token::Cast),
+    ("^(?i)ceil$", Token::Ceil),
+    ("^(?i)ceiling$", Token::Ceiling),
+    ("^(?i)coalesce$", Token::Coalesce),
+    ("^(?i)cos$", Token::Cos),
+    ("^(?i)concat$", Token::Concat),
+    ("^(?i)count$", Token::Count),
+    ("^(?i)countif$", Token::CountIf),
+    ("^(?i)day$", Token::Day),
+    ("^(?i)day_add$", Token::DayAdd),
+    ("^(?i)day_diff$", Token::DayDiff),
+    ("^(?i)day_sub$", Token::DaySub),
+    ("^(?i)decode$", Token::Decode),
+    ("^(?i)dense_rank$", Token::DenseRank),
+    ("^(?i)extract$", Token::Extract),
+    ("^(?i)floor$", Token::Floor),
+    ("^(?i)hour$", Token::Hour),
+    ("^(?i)hour_add$", Token::HourAdd),
+    ("^(?i)hour_diff$", Token::HourDiff),
+    ("^(?i)hour_sub$", Token::HourSub),
+    ("^(?i)length$", Token::Length),
+    ("^(?i)log$", Token::Log),
+    ("^(?i)log10$", Token::Log10),
+    ("^(?i)lower$", Token::Lower),
+    ("^(?i)lpad$", Token::LPad),
+    ("^(?i)ltrim$", Token::LTrim),
+    ("^(?i)max$", Token::Max),
+    ("^(?i)maxif$", Token::MaxIf),
+    ("^(?i)median$", Token::Median),
+    ("^(?i)medianif$", Token::MedianIf),
+    ("^(?i)min$", Token::Min),
+    ("^(?i)minif$", Token::MinIf),
+    ("^(?i)minute$", Token::Minute),
+    ("^(?i)minute_add$", Token::MinuteAdd),
+    ("^(?i)minute_diff$", Token::MinuteDiff),
+    ("^(?i)minute_sub$", Token::MinuteSub),
+    ("^(?i)month$", Token::Month),
+    ("^(?i)month_add$", Token::MonthAdd),
+    ("^(?i)month_diff$", Token::MonthDiff),
+    ("^(?i)month_sub$", Token::MonthSub),
+    ("^(?i)now$", Token::Now),
+    ("^(?i)nvl$", Token::Nvl),
+    ("^(?i)pad_left$", Token::PadLeft),
+    ("^(?i)pad_right$", Token::PadRight),
+    ("^(?i)percent$", Token::Percent),
+    ("^(?i)percentile$", Token::Percentile),
+    ("^(?i)percentile_cont$", Token::PercentileCont),
+    ("^(?i)percentile_disc$", Token::PercentileDisc),
+    ("^(?i)pow$", Token::Pow),
+    ("^(?i)power$", Token::Power),
+    ("^(?i)replace$", Token::Replace),
+    ("^(?i)reverse$", Token::Reverse),
+    ("^(?i)rank$", Token::Rank),
+    ("^(?i)round$", Token::Round),
+    ("^(?i)sign$", Token::Sign),
+    ("^(?i)sin$", Token::Sin),
+    ("^(?i)sqrt$", Token::Sqrt),
+    ("^(?i)stddev$", Token::Stddev),
+    ("^(?i)stddevif$", Token::StddevIf),
+    ("^(?i)rpad$", Token::RPad),
+    ("^(?i)rtrim$", Token::RTrim),
+    ("^(?i)second$", Token::Second),
+    ("^(?i)second_add$", Token::SecondAdd),
+    ("^(?i)second_diff$", Token::SecondDiff),
+    ("^(?i)second_sub", Token::SecondSub),
+    ("^(?i)substr$", Token::Substr),
+    ("^(?i)substring$", Token::Substring),
+    ("^(?i)sum$", Token::Sum),
+    ("^(?i)sumif$", Token::SumIf),
+    ("^(?i)tan$", Token::Tan),
+    ("^(?i)trim$", Token::Trim),
+    ("^(?i)trim_start$", Token::TrimStart),
+    ("^(?i)trim_end$", Token::TrimEnd),
+    ("^(?i)upper$", Token::Upper),
+    ("^(?i)year$", Token::Year),
+    ("^(?i)year_add$", Token::YearAdd),
+    ("^(?i)year_diff$", Token::YearDiff),
+    ("^(?i)year_sub$", Token::YearSub),
     // endregion
 
     // region
-    ("^([Tt][Ee][Xx][Tt])$", Token::Text),
-    ("^([Ii][Nn][Tt])$", Token::Int),
-    ("^([Ff][Ll][Oo][Aa][Tt])$", Token::Float),
-    ("^([Nn][Uu][Mm][Ee][Rr][Ii][Cc])$", Token::Numeric),
-    ("^([Tt][Ii][Mm][Ee][Ss][Tt][Aa][Mm][Pp])$", Token::Timestamp),
-    ("^([Dd][Aa][Tt][Ee][Tt][Ii][Mm][Ee])$", Token::Datetime),
-    ("^([Dd][Aa][Tt][Ee])$", Token::Date),
-    ("^([Tt][Ii][Mm][Ee])$", Token::Time),
+    ("^text$", Token::Text),
+    ("^int$", Token::Int),
+    ("^float$", Token::Float),
+    ("^numeric$", Token::Numeric),
+    ("^timestamp$", Token::Timestamp),
+    ("^datetime$", Token::Datetime),
+    ("^date$", Token::Date),
+    ("^time$", Token::Time),
     // endregion
 ];
 
@@ -357,7 +189,7 @@ impl<'input> Token<'input> {
             StringLiteral(_) => "string",
             IntLiteral(_) | FloatLiteral(_) => "number",
             DocComment(_) => "comment",
-            _ => "unknown"
+            _ => "unknown",
         }
     }
 }
@@ -368,8 +200,10 @@ struct MatcherBuilder {
 
 impl MatcherBuilder {
     fn new() -> Self {
-        let regex_set = RegexSetBuilder::new(REGEX_SOURCE.iter().map(|(s, _)| s)).build().unwrap();
-        MatcherBuilder{regex_set}
+        let regex_set = RegexSetBuilder::new(REGEX_SOURCE.iter().map(|(s, _)| s))
+            .build()
+            .unwrap();
+        MatcherBuilder { regex_set }
     }
 
     fn matcher<'input, 'builder>(&'builder self, s: &'input str) -> Matcher<'input, 'builder> {
@@ -384,7 +218,7 @@ impl MatcherBuilder {
 struct Matcher<'input, 'builder> {
     text: &'input str,
     consumed: usize,
-    regex_set: &'builder regex::RegexSet
+    regex_set: &'builder regex::RegexSet,
 }
 
 impl<'input, 'builder> Iterator for Matcher<'input, 'builder> {
@@ -399,48 +233,53 @@ impl<'input, 'builder> Iterator for Matcher<'input, 'builder> {
         if let Some(i) = matches.first() {
             let (_, t) = &REGEX_SOURCE[*i];
             Some(t.clone())
-        } else { None }
+        } else {
+            None
+        }
     }
 }
 
 //noinspection ALL
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Fail)]
 pub enum LexicalError {
-
-    /// empty char literal
+    #[fail(display = "empty char literal")]
     EmptyCharLiteral,
 
-    /// unexpected character
+    #[fail(display = "unexpected character:{}", _0)]
     UnexpectedChar(char),
 
-    /// unexpected end of file
+    #[fail(display = "unexpected end of file")]
     UnexpectedEof,
 
-    /// unexpected escape code
+    #[fail(display = "unexpected escape code:{}", _0)]
     UnexpectedEscapeCode(char),
 
-    /// unterminated string literal
+    #[fail(display = "unterminated string literal")]
     UnterminatedStringLiteral,
 
-    /// cannot parse integer, probable overflow
+    #[fail(display = "cannot parse integer, probable overflow")]
     NonParseableInt,
 
-    /// cannot parse hex literal, overflow
+    #[fail(display = "cannot parse hex literal, overflow")]
     HexLiteralOverflow,
 
-    /// cannot parse hex literal, underflow
+    #[fail(display = "cannot parse hex literal, underflow")]
     HexLiteralUnderflow,
 
-    /// wrong hex literal prefix, should start as '0x' or '-0x'
+    #[fail(display = "wrong hex literal prefix, should start as '0x' or '-0x'")]
     HexLiteralWrongPrefix,
 
-    /// cannot parse hex literal, incomplete
-    HexLiteralIncomplete
+    #[fail(display = "cannot parse hex literal, incomplete")]
+    HexLiteralIncomplete,
 }
 
 pub type SpannedToken<'input> = Spanned<Token<'input>, Location>;
 
 pub type SpannedError = Spanned<LexicalError, Location>;
+
+fn error<T>(location: Location, code: LexicalError) -> Result<T, SpannedError> {
+    Err(spanned(location, location, code))
+}
 
 pub fn is_identifier_start(ch: char) -> bool {
     match ch {
@@ -464,7 +303,6 @@ pub fn is_hex(ch: char) -> bool {
     ch.is_digit(16)
 }
 
-
 pub struct Lexer<'input> {
     input: &'input str,
     chars: CharLocations<'input>,
@@ -474,14 +312,17 @@ pub struct Lexer<'input> {
 }
 
 impl<'input> Lexer<'input> {
-    pub fn new<S>(input: &'input S) -> Self where S: ?Sized + ParserSource {
+    pub fn new<S>(input: &'input S) -> Self
+    where
+        S: ?Sized + ParserSource,
+    {
         let mut chars = CharLocations::new(input);
         Lexer {
             input: input.src(),
             start_index: input.start_index(),
             lookahead: chars.next(),
             chars,
-            builder: MatcherBuilder::new()
+            builder: MatcherBuilder::new(),
         }
     }
 
@@ -498,7 +339,6 @@ impl<'input> Lexer<'input> {
             None => None,
         }
     }
-
 
     fn skip_to_end(&mut self) {
         while let Some(_) = self.bump() {}
@@ -520,12 +360,12 @@ impl<'input> Lexer<'input> {
             _ => (),
         }
 
-        let token =match self.builder.matcher(identifier).next() {
+        let token = match self.builder.matcher(identifier).next() {
             Some(t) => t,
-            None => Token::Identifier(identifier)
+            None => Token::Identifier(identifier),
         };
 
-//        let token = Token::Identifier(identifier);
+        //        let token = Token::Identifier(identifier);
 
         Ok(spanned(start, end, token))
     }
@@ -534,9 +374,11 @@ impl<'input> Lexer<'input> {
         let (end, int) = self.take_while(start, is_digit);
         let (start, end, token) = if int.chars().next().unwrap() == '.' {
             match self.lookahead {
-                Some((_, ch)) if ch.is_whitespace() => (start, end, Token::FloatLiteral(int.parse().unwrap())),
+                Some((_, ch)) if ch.is_whitespace() => {
+                    (start, end, Token::FloatLiteral(int.parse().unwrap()))
+                }
                 None => (start, end, Token::FloatLiteral(int.parse().unwrap())),
-                _ => panic!("错误")
+                _ => panic!("错误"),
             }
         } else {
             match self.lookahead {
@@ -589,7 +431,9 @@ impl<'input> Lexer<'input> {
                         }
                     }
                 }
-                Some((start, ch)) if is_identifier_start(ch) => return self.error(start, UnexpectedChar(ch)),
+                Some((start, ch)) if is_identifier_start(ch) => {
+                    return self.error(start, UnexpectedChar(ch))
+                }
                 None | Some(_) => {
                     if let Ok(val) = int.parse() {
                         (start, end, Token::IntLiteral(val))
@@ -602,8 +446,7 @@ impl<'input> Lexer<'input> {
         Ok(spanned(start, end, token))
     }
 
-    fn test_lookahead<F: FnMut(char) -> bool>(&self, mut test: F) -> bool
-    {
+    fn test_lookahead<F: FnMut(char) -> bool>(&self, mut test: F) -> bool {
         self.lookahead.map_or(false, |(_, ch)| test(ch))
     }
 
@@ -652,13 +495,19 @@ impl<'input> Lexer<'input> {
         &self.input[start.to_usize()..end.to_usize()]
     }
 
-    fn take_while<F: FnMut(char) -> bool>(&mut self, start: Location, mut keep_going: F) -> (Location, &'input str)
-    {
+    fn take_while<F: FnMut(char) -> bool>(
+        &mut self,
+        start: Location,
+        mut keep_going: F,
+    ) -> (Location, &'input str) {
         self.take_until(start, |c| !keep_going(c))
     }
 
-    fn take_until<F: FnMut(char) -> bool>(&mut self, start: Location, mut terminate: F) -> (Location, &'input str)
-    {
+    fn take_until<F: FnMut(char) -> bool>(
+        &mut self,
+        start: Location,
+        mut terminate: F,
+    ) -> (Location, &'input str) {
         while let Some((end, ch)) = self.lookahead {
             if terminate(ch) {
                 return (end, self.slice(start, end));
@@ -666,7 +515,10 @@ impl<'input> Lexer<'input> {
                 self.bump();
             }
         }
-        (self.next_location(), self.slice(start, self.next_location()))
+        (
+            self.next_location(),
+            self.slice(start, self.next_location()),
+        )
     }
 
     fn string_literal(&mut self, start: Location) -> Result<SpannedToken<'input>, SpannedError> {
@@ -682,7 +534,7 @@ impl<'input> Lexer<'input> {
                         let token = Token::StringLiteral(string);
                         return Ok(spanned(start, end, token));
                     }
-                },
+                }
                 ch => string.push(ch),
             }
         }
@@ -695,9 +547,8 @@ impl<'input> Iterator for Lexer<'input> {
     type Item = Result<SpannedToken<'input>, SpannedError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some((start, ch)) = self.bump(){
+        while let Some((start, ch)) = self.bump() {
             return match ch {
-                ch if ch.is_whitespace() => continue,
                 '-' if self.test_lookahead(|ch| ch == '-') => match self.line_comment(start) {
                     Some(token) => Some(Ok(token)),
                     None => continue,
@@ -705,7 +556,7 @@ impl<'input> Iterator for Lexer<'input> {
                 '!' | '^' | '~' if self.test_lookahead(|ch| ch == '=') => {
                     self.bump(); // skip '='
                     Some(Ok(spanned(start, self.next_location(), Token::NotEqual)))
-                },
+                }
                 ':' => {
                     if self.test_lookahead(|ch| ch == ':') {
                         self.bump(); // skip ':'
@@ -713,7 +564,7 @@ impl<'input> Iterator for Lexer<'input> {
                     } else {
                         Some(Ok(spanned(start, self.next_location(), Token::Colon)))
                     }
-                },
+                }
                 '|' => {
                     if self.test_lookahead(|ch| ch == '|') {
                         self.bump(); // skip ':'
@@ -721,33 +572,41 @@ impl<'input> Iterator for Lexer<'input> {
                     } else {
                         Some(Ok(spanned(start, self.next_location(), Token::Pipe)))
                     }
-                },
+                }
                 '<' => {
                     if let Some((_, ch)) = self.lookahead {
                         match ch {
                             '=' => {
                                 self.bump(); // skip '='
                                 Some(Ok(spanned(start, self.next_location(), Token::LessOrEqual)))
-                            },
+                            }
                             '>' => {
                                 self.bump(); // skip '>'
                                 Some(Ok(spanned(start, self.next_location(), Token::NotEqual)))
                             }
-                            _ => Some(Ok(spanned(start, self.next_location(), Token::Less)))
+                            _ => Some(Ok(spanned(start, self.next_location(), Token::Less))),
                         }
                     } else {
                         Some(Ok(spanned(start, self.next_location(), Token::Less)))
                     }
-                },
+                }
                 '>' => {
                     if self.test_lookahead(|ch| ch == '=') {
                         self.bump(); // skip '='
-                        Some(Ok(spanned(start, self.next_location(), Token::GreaterOrEqual)))
-                    } else { Some(Ok(spanned(start, self.next_location(), Token::Greater))) }
-                },
-                ch if is_digit(ch) || ((ch == '-' || ch == '.') && self.test_lookahead(is_digit)) => {
+                        Some(Ok(spanned(
+                            start,
+                            self.next_location(),
+                            Token::GreaterOrEqual,
+                        )))
+                    } else {
+                        Some(Ok(spanned(start, self.next_location(), Token::Greater)))
+                    }
+                }
+                ch if is_digit(ch)
+                    || ((ch == '-' || ch == '.') && self.test_lookahead(is_digit)) =>
+                {
                     Some(self.numeric_literal(start))
-                },
+                }
                 '\'' => Some(self.string_literal(start)),
                 '(' => Some(Ok(spanned(start, self.next_location(), Token::LeftParen))),
                 ')' => Some(Ok(spanned(start, self.next_location(), Token::RightParen))),
@@ -759,15 +618,16 @@ impl<'input> Iterator for Lexer<'input> {
                 '*' => Some(Ok(spanned(start, self.next_location(), Token::Asterisk))),
                 '/' => Some(Ok(spanned(start, self.next_location(), Token::Solidus))),
                 ch if is_identifier_start(ch) => Some(self.identifier(start)),
-                ch => unimplemented!("{:?}", ch)
-            }
+                ch if ch.is_whitespace() => continue,
+                ch => Some(self.error(start, UnexpectedChar(ch))),
+            };
         }
         // Return EOF instead of None so that the layout algorithm receives the eof location
-//        Some(Ok(spanned(
-//            self.next_location(),
-//            self.next_location(),
-//            Token::EOF,
-//        )))
+        //        Some(Ok(spanned(
+        //            self.next_location(),
+        //            self.next_location(),
+        //            Token::EOF,
+        //        )))
         None
     }
 }
@@ -781,13 +641,12 @@ impl<'input> Iterator for Tokenizer<'input> {
         match self.0.next() {
             Some(t) => Some(match t {
                 Ok(t) => Ok((t.span.start().absolute, t.value, t.span.end().absolute)),
-                Err(t) => Err(t)
+                Err(t) => Err(t),
             }),
             None => None,
         }
     }
 }
-
 
 /// Converts partial hex literal (i.e. part after `0x` or `-0x`) to 64 bit signed integer.
 ///
@@ -814,9 +673,9 @@ fn i64_from_hex(hex: &str, is_positive: bool) -> Result<i64, LexicalError> {
 }
 
 #[cfg(test)]
-mod test{
-    use super::*;
+mod test {
     use super::Token::*;
+    use super::*;
 
     fn location(byte: u32) -> Location {
         Location {
@@ -829,12 +688,15 @@ mod test{
     fn tokenizer<'input>(
         input: &'input str,
     ) -> impl Iterator<Item = Result<SpannedToken<'input>, SpannedError>> + 'input {
-        Box::new(Iterator::take_while(Lexer::new(input), |token| match *token {
-            Ok(Spanned {
-                   value: Token::EOF, ..
-               }) => false,
-            _ => true,
-        }))
+        Box::new(Iterator::take_while(
+            Lexer::new(input),
+            |token| match *token {
+                Ok(Spanned {
+                    value: Token::EOF, ..
+                }) => false,
+                _ => true,
+            },
+        ))
     }
 
     fn test(input: &str, expected: Vec<(&str, Token)>) {
@@ -852,8 +714,8 @@ mod test{
             let mut start = Source::location(&source, start_byte).unwrap();
             start.column += ColumnOffset(1);
 
-            let end_byte = source.span().start()
-                + ByteOffset(expected_span.rfind("~").unwrap() as i64 + 1);
+            let end_byte =
+                source.span().start() + ByteOffset(expected_span.rfind("~").unwrap() as i64 + 1);
             let mut end = Source::location(&source, end_byte.into()).unwrap();
             end.column += ColumnOffset(1);
 
@@ -876,22 +738,58 @@ mod test{
                 (r#"  ~                                           "#, Colon),
                 (r#"    ~                                         "#, Equal),
                 (r#"      ~                                       "#, Pipe),
-                (r#"        ~                                     "#, LeftParen),
-                (r#"          ~                                   "#, RightParen),
-                (r#"            ~                                 "#, PlusSign),
-                (r#"              ~                               "#, MinusSign),
-                (r#"                ~                             "#, Asterisk),
+                (
+                    r#"        ~                                     "#,
+                    LeftParen,
+                ),
+                (
+                    r#"          ~                                   "#,
+                    RightParen,
+                ),
+                (
+                    r#"            ~                                 "#,
+                    PlusSign,
+                ),
+                (
+                    r#"              ~                               "#,
+                    MinusSign,
+                ),
+                (
+                    r#"                ~                             "#,
+                    Asterisk,
+                ),
                 (r#"                  ~                           "#, Solidus),
                 (r#"                    ~                         "#, Greater),
                 (r#"                      ~                       "#, Less),
                 (r#"                        ~                     "#, Comma),
-                (r#"                          ~~                  "#, LessOrEqual),
-                (r#"                             ~~               "#, GreaterOrEqual),
-                (r#"                                ~~            "#, NotEqual),
-                (r#"                                   ~~         "#, NotEqual),
-                (r#"                                      ~~      "#, NotEqual),
-                (r#"                                         ~~   "#, NotEqual),
-                (r#"                                            ~~"#, DoubleColon),
+                (
+                    r#"                          ~~                  "#,
+                    LessOrEqual,
+                ),
+                (
+                    r#"                             ~~               "#,
+                    GreaterOrEqual,
+                ),
+                (
+                    r#"                                ~~            "#,
+                    NotEqual,
+                ),
+                (
+                    r#"                                   ~~         "#,
+                    NotEqual,
+                ),
+                (
+                    r#"                                      ~~      "#,
+                    NotEqual,
+                ),
+                (
+                    r#"                                         ~~   "#,
+                    NotEqual,
+                ),
+                (
+                    r#"                                            ~~"#,
+                    DoubleColon,
+                ),
             ],
         );
     }
@@ -904,7 +802,13 @@ mod test{
                 (r#"~             "#, Identifier("h")),
                 (r#" ~            "#, MinusSign),
                 (r#"  ~           "#, Identifier("i")),
-                (r#"    ~~ ~~~~~~~"#, DocComment(Comment{r#type: CommentType::Line, content: "hellooo".to_string()}))
+                (
+                    r#"    ~~ ~~~~~~~"#,
+                    DocComment(Comment {
+                        r#type: CommentType::Line,
+                        content: "hellooo".to_string(),
+                    }),
+                ),
             ],
         );
     }
@@ -916,7 +820,10 @@ mod test{
             vec![
                 (r#"~~~~~              "#, StringLiteral("abc".to_string())),
                 (r#"      ~~           "#, Identifier("mn")),
-                (r#"         ~~~~~~~~~~"#, StringLiteral(r#"hjk'xyz"#.to_string()), ),
+                (
+                    r#"         ~~~~~~~~~~"#,
+                    StringLiteral(r#"hjk'xyz"#.to_string()),
+                ),
             ],
         );
     }
@@ -948,7 +855,7 @@ mod test{
     }
 
     #[test]
-    fn variable(){
+    fn variable() {
         test(
             r#"a = :  m"#,
             vec![
@@ -962,36 +869,76 @@ mod test{
 
     #[test]
     fn test1() {
-        test("a >-3.2",
-             vec![
-                 ("~      ", Identifier("a")),
-                 ("  ~    ", Greater),
-                 ("   ~~~~", FloatLiteral(-3.2)),
-             ],
+        test(
+            "a >-3.2",
+            vec![
+                ("~      ", Identifier("a")),
+                ("  ~    ", Greater),
+                ("   ~~~~", FloatLiteral(-3.2)),
+            ],
         )
     }
     #[test]
     fn test2() {
-        test("a > '3.2'",
-             vec![
-                 ("~        ", Identifier("a")),
-                 ("  ~      ", Greater),
-                 ("    ~~~~~", StringLiteral("3.2".to_string())),
-             ],
+        test(
+            "a > '3.2'",
+            vec![
+                ("~        ", Identifier("a")),
+                ("  ~      ", Greater),
+                ("    ~~~~~", StringLiteral("3.2".to_string())),
+            ],
         )
     }
     #[test]
-    fn test3(){
-        test("trim(trailing  'a' from 'abc')",
-             vec![
-                 ("~~~~                          ", Trim),
-                 ("    ~                         ", LeftParen),
-                 ("     ~~~~~~~~                 ", Trailing),
-                 ("               ~~~            ", StringLiteral("a".to_string())),
-                 ("                   ~~~~       ", From),
-                 ("                        ~~~~~ ", StringLiteral("abc".to_string())),
-                 ("                             ~", RightParen),
-             ],
+    fn test3() {
+        test(
+            "trim(trailing  'a' from 'abc')",
+            vec![
+                ("~~~~                          ", Trim),
+                ("    ~                         ", LeftParen),
+                ("     ~~~~~~~~                 ", Trailing),
+                (
+                    "               ~~~            ",
+                    StringLiteral("a".to_string()),
+                ),
+                ("                   ~~~~       ", From),
+                (
+                    "                        ~~~~~ ",
+                    StringLiteral("abc".to_string()),
+                ),
+                ("                             ~", RightParen),
+            ],
         )
     }
+
+    #[test]
+    fn test_err() {
+        test(
+            "trim(trailing  'a' from 'abc')",
+            vec![
+                ("~~~~                          ", Trim),
+                ("    ~                         ", LeftParen),
+                ("     ~~~~~~~~                 ", Trailing),
+                (
+                    "               ~~~            ",
+                    StringLiteral("a".to_string()),
+                ),
+                ("                   ~~~~       ", From),
+                (
+                    "                        ~~~~~ ",
+                    StringLiteral("abc".to_string()),
+                ),
+                ("                             ~", RightParen),
+            ],
+        )
+    }
+
+    #[test]
+    fn string_literal_unterminated() {
+        assert_eq!(
+            tokenizer(r#"foo 'bar''\n baz"#).last(),
+            Some(error(location(4), UnterminatedStringLiteral))
+        );
+    }
+
 }

@@ -5,13 +5,12 @@
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
-use super::{Location, Line, Position, Span};
-
+use super::{Line, Location, Position, Span};
 
 pub trait Source {
     fn new(s: &str) -> Self
-        where
-            Self: Sized;
+    where
+        Self: Sized;
 
     fn location(&self, byte: Position) -> Option<Location>;
 
@@ -30,7 +29,9 @@ pub trait Source {
 }
 
 impl Source for super::codespan::FileMap {
-    fn new(s: &str) -> Self where Self: Sized,
+    fn new(s: &str) -> Self
+    where
+        Self: Sized,
     {
         super::codespan::FileMap::new("test".into(), s.into())
     }
@@ -78,7 +79,9 @@ impl Source for super::codespan::FileMap {
 }
 
 impl Source for () {
-    fn new(_: &str) -> Self where Self: Sized,
+    fn new(_: &str) -> Self
+    where
+        Self: Sized,
     {
     }
 
@@ -184,4 +187,3 @@ impl<'a> DoubleEndedIterator for CommentIter<'a> {
         }
     }
 }
-

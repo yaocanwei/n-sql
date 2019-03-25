@@ -6,9 +6,8 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use ast::SelectStatement;
 use ast::PaginationStatement;
-
+use ast::SelectStatement;
 
 #[derive(Clone, Debug)]
 pub enum SetStatement {

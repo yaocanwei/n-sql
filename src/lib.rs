@@ -5,27 +5,43 @@
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
-
+#![feature(const_fn)]
 #![allow(unused_imports)]
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
-#[macro_use]
-extern crate lalrpop_util;
+extern crate cfg_if;
 extern crate core;
+#[macro_use]
+extern crate failure;
+#[macro_use]
+extern crate lazy_static;
 
-
+use cfg_if::cfg_if;
 mod ast;
-mod optimizer;
+mod catalog;
 mod grammar;
-mod generator;
-mod version;
 mod lexer;
-
-use lalrpop_util::ParseError;
+mod optimizer;
+mod version;
+pub mod generator;
+pub mod parser;
 
 pub use ast::*;
-pub use generator::Generator;
-pub use optimizer::Optimizer;
-pub use grammar::{PredicateParser, ExpressionParser, StatementParser};
+pub use grammar::{
+    ExpressionEntryParser as ExpressionParser, PredicateEntryParser as PredicateParser,
+    StatementEntryParser as StatementParser,
+};
 pub use lexer::Lexer;
+pub use optimizer::Optimizer;
+
+
+#[cfg(target_arch="wasm32")]
+extern crate wasm_bindgen;
+#[cfg(target_arch="wasm32")]
+mod wasm;
+
+
+
+
+
